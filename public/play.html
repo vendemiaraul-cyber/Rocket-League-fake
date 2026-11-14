@@ -203,7 +203,7 @@ body.spect .ingame .boost,body.spect .camtag{display:none}
 #orb{position:fixed;z-index:36;width:66px;height:66px;left:0;top:0;touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none;transition:opacity .2s,transform .2s;perspective:260px}
 #orb.dragging{cursor:grabbing}
 #orb .float{position:absolute;inset:0;animation:orbBob 3.4s ease-in-out infinite}
-#orb .aura{position:absolute;inset:-12px;border-radius:50%;background:conic-gradient(from 0deg,rgba(91,140,255,.55),rgba(180,107,255,.5),rgba(255,111,181,.45),rgba(79,227,255,.55),rgba(91,140,255,.55));filter:blur(14px);opacity:.75;animation:orbSwirl 9s linear infinite}
+#orb .aura{position:absolute;inset:-12px;pointer-events:none;border-radius:50%;background:conic-gradient(from 0deg,rgba(91,140,255,.55),rgba(180,107,255,.5),rgba(255,111,181,.45),rgba(79,227,255,.55),rgba(91,140,255,.55));filter:blur(14px);opacity:.75;animation:orbSwirl 9s linear infinite}
 #orb .blob{position:absolute;inset:5px;overflow:hidden;background:#3a2fd8;isolation:isolate;transform:translateZ(0);-webkit-mask-image:-webkit-radial-gradient(white,black);mask-image:radial-gradient(white,black);border-radius:46% 54% 51% 49%/53% 47% 53% 47%;animation:orbMorph 7s ease-in-out infinite;
   box-shadow:inset -7px -9px 14px rgba(14,4,52,.6),inset 6px 7px 12px rgba(255,255,255,.32),0 9px 20px rgba(38,20,130,.55),0 0 0 1px rgba(255,255,255,.18)}
 #orb .swirl{position:absolute;inset:-35%;background:conic-gradient(from 0deg,#4f7dff,#a765ff,#ff6fb3,#ffae6b,#4fe0ff,#4f7dff);filter:blur(7px);animation:orbSwirl 7s linear infinite}
@@ -216,53 +216,102 @@ body.spect .ingame .boost,body.spect .camtag{display:none}
 #orb .eye{transform-origin:center;transform-box:fill-box;animation:orbBlink 4.8s infinite}
 #orb .smile.big{opacity:0}
 #orb.happy .smile.small{opacity:0}#orb.happy .smile.big{opacity:1}
-#orb.think .swirl{animation-duration:1.4s}#orb.think .swirl.b{animation-duration:1s}#orb.think .aura{animation-duration:2s;opacity:1}
-#orb.think .face{animation:orbFaceSpin 1.15s linear infinite}
+#orb.think .swirl{animation-duration:2.6s}#orb.think .swirl.b{animation-duration:1.8s}#orb.think .aura{animation:orbSwirl 9s linear infinite,orbPulse 1.6s ease-in-out infinite}
+#orb .smile.hmm{opacity:0}
+#orb.think .smile.small,#orb.think .smile.big{opacity:0}#orb.think .smile.hmm{opacity:1}
+#orb .smile{transition:opacity .25s}
 #orb.spin .face{animation:orbFaceSpin .85s cubic-bezier(.45,.05,.55,.95) 1}
+/* thinking: a small loading ring sits by his bottom, and he watches it */
+#orb .ring{position:absolute;width:15px;height:15px;bottom:-15px;right:2px;opacity:0;transform:scale(.2);pointer-events:none;
+  transition:opacity .2s,transform .4s cubic-bezier(.3,1.7,.5,1)}
+#orb.ringL .ring{right:auto;left:2px}
+#orb .ring i{position:absolute;inset:0;border-radius:50%;border:2.5px solid rgba(255,255,255,.2);border-top-color:#fff;border-right-color:#a9dcff;box-shadow:0 0 9px rgba(124,198,255,.7);animation:spin .75s linear infinite}
+#orb.think .ring{opacity:1;transform:scale(1)}
+#orb.gulp .float{animation:orbGulp .5s cubic-bezier(.3,1.4,.5,1)}
+#orb.split .float{animation:orbSplit .55s cubic-bezier(.3,1.4,.5,1)}
 body.driving #orb:not(.open){opacity:.55;transform:scale(.82)}
-#orb.gone{opacity:0!important;pointer-events:none;transition:opacity .12s}
 @keyframes orbBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
 @keyframes orbSwirl{to{transform:rotate(360deg)}}
+@keyframes orbPulse{0%,100%{opacity:.6}50%{opacity:1}}
+@keyframes orbGulp{0%{transform:scale(1)}30%{transform:scale(1.18,1.12)}60%{transform:scale(.93,.97)}100%{transform:scale(1)}}
+@keyframes orbSplit{0%{transform:scale(1)}35%{transform:scale(1.25,.85)}65%{transform:scale(.9,1.08)}100%{transform:scale(1)}}
 @keyframes orbMorph{0%,100%{border-radius:46% 54% 51% 49%/53% 47% 53% 47%}33%{border-radius:53% 47% 45% 55%/48% 55% 45% 52%}66%{border-radius:49% 51% 56% 44%/55% 49% 51% 45%}}
 @keyframes orbBlink{0%,93%,100%{transform:scaleY(1)}96%{transform:scaleY(.12)}}
 /* spinning: the face sweeps across and round the back, like a turning ball */
 @keyframes orbFaceSpin{0%{transform:translate(0,0) scale(1,1);opacity:1}38%{transform:translate(21px,0) scale(.18,1);opacity:0}
   39%{transform:translate(-21px,0) scale(.18,1);opacity:0}100%{transform:translate(0,0) scale(1,1);opacity:1}}
-@media (prefers-reduced-motion:reduce){#orb .float,#orb .aura,#orb .blob,#orb .swirl,#orb .eye,#orb.think .face,#orb.spin .face{animation:none}}
-#orbChat{position:fixed;z-index:35;width:min(310px,calc(100vw - 20px));max-height:min(430px,calc(100vh - 20px));display:flex;flex-direction:column;
-  background:rgba(10,14,32,.97);border:1px solid rgba(124,198,255,.35);border-radius:16px;box-shadow:0 18px 50px rgba(0,0,0,.55);overflow:hidden;color:#e8eefc;font-size:13px}
-#orbChat[hidden]{display:none}
+@media (prefers-reduced-motion:reduce){#orb .float,#orb .aura,#orb .blob,#orb .swirl,#orb .eye,#orb.spin .face,#orb .ring i{animation:none}}
+/* the text bar slides out of him; the answers float above (or below) it */
+#orbBar{position:fixed;z-index:35;height:48px;display:flex;align-items:center;gap:5px;padding:0 6px 0 16px;border-radius:999px;
+  background:rgba(12,13,34,.94);box-shadow:0 14px 36px rgba(0,0,0,.5),0 0 26px rgba(130,110,255,.28);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+#orbBar[hidden],#orbTalk[hidden]{display:none}
 @property --ocA{syntax:'<angle>';inherits:false;initial-value:0deg}
-#orbChat::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:2px;pointer-events:none;z-index:2;
+#orbBar::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1.6px;pointer-events:none;
   background:conic-gradient(from var(--ocA),#4f7dff,#a765ff,#ff6fb3,#ffae6b,#4fe0ff,#4f7dff);animation:ocEdge 5s linear infinite;
   -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0)}
-#orbChat .oc-swirl{position:absolute;inset:-40%;z-index:3;pointer-events:none;opacity:0;transition:opacity .3s;
-  background:conic-gradient(from 0deg,#4f7dff,#a765ff,#ff6fb3,#ffae6b,#4fe0ff,#4f7dff);filter:blur(18px);animation:orbSwirl 3s linear infinite}
-#orbChat.morph .oc-swirl{opacity:1;transition:none}
-#orbChat>*:not(.oc-swirl){transition:opacity .2s}
-#orbChat.morph>*:not(.oc-swirl){opacity:0;transition:none}
 @keyframes ocEdge{to{--ocA:360deg}}
-@media (prefers-reduced-motion:reduce){#orbChat::before,#orbChat .oc-swirl{animation:none}}
-#orbChat .oc-head{display:flex;align-items:center;gap:8px;padding:9px 10px 8px 12px;border-bottom:1px solid rgba(255,255,255,.1)}
-#orbChat .oc-head b{font:400 14px 'Russo One',Impact,sans-serif;letter-spacing:.05em;flex:1}
-#orbChat .oc-head button{background:none;border:0;color:#9fb6e0;font-size:20px;line-height:1;cursor:pointer;padding:2px 6px}
-#aiLog{flex:1;min-height:90px;overflow:auto;display:flex;flex-direction:column;gap:7px;padding:10px}
+#aiIn{flex:1;min-width:0;height:100%;background:none;border:0;outline:none;color:#fff;font:600 16px 'Rajdhani',system-ui,sans-serif;padding:0;user-select:text;-webkit-user-select:text}
+#aiIn::placeholder{color:#8f9cc6}
+.ob-btn{position:relative;width:36px;height:36px;flex:none;border-radius:50%;border:0;display:grid;place-items:center;cursor:pointer;background:rgba(255,255,255,.08);color:#cfe6ff;padding:0}
+.ob-btn svg{width:18px;height:18px}
+.ob-btn.send{background:linear-gradient(135deg,#4f7dff,#a765ff);color:#fff;box-shadow:0 3px 10px rgba(110,90,255,.45)}
+.ob-btn:disabled{opacity:.45;cursor:default}
+#orbTalk{position:fixed;z-index:35;display:flex;flex-direction:column;background:rgba(10,13,32,.95);border:1px solid rgba(255,255,255,.12);border-radius:18px;
+  box-shadow:0 16px 44px rgba(0,0,0,.5);overflow:hidden;color:#e8eefc;font-size:13px;-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+#orbTalk .ot-head{display:flex;align-items:center;padding:7px 6px 0 13px;font:400 11px 'Russo One',Impact,sans-serif;letter-spacing:.1em;color:#9fb6e0}
+#orbTalk .ot-head span{flex:1}
+#orbTalk .ot-head button{background:none;border:0;color:#9fb6e0;font-size:20px;line-height:1;cursor:pointer;padding:2px 7px}
+#aiLog{flex:1;min-height:40px;overflow:auto;display:flex;flex-direction:column;gap:7px;padding:8px 10px 10px;-webkit-overflow-scrolling:touch}
 .aimsg{padding:8px 10px;border-radius:12px;line-height:1.42;max-width:92%;user-select:text;-webkit-user-select:text}
 .aimsg.u{align-self:flex-end;background:#2f6bff;color:#fff;border-bottom-right-radius:4px}
 .aimsg.a{align-self:flex-start;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-bottom-left-radius:4px}
 .aimsg.a ul{margin:4px 0;padding-left:1.15em}.aimsg.a p{margin:0 0 5px}.aimsg.a p:last-child{margin:0}
-.aimsg.wait{opacity:.7;font-style:italic}
+.aimsg.dots{display:flex;gap:4px;padding:11px 12px}
+.aimsg.dots i{width:6px;height:6px;border-radius:50%;background:#a9bbe6;animation:dotUp 1.05s ease-in-out infinite}
+.aimsg.dots i:nth-child(2){animation-delay:.15s}.aimsg.dots i:nth-child(3){animation-delay:.3s}
+@keyframes dotUp{0%,60%,100%{transform:translateY(0);opacity:.45}30%{transform:translateY(-4px);opacity:1}}
 .aimsg.test{align-self:stretch;max-width:none;background:rgba(89,224,154,.07);border:1px solid rgba(89,224,154,.25);font:600 12px ui-monospace,Menlo,monospace;white-space:pre-wrap}
+.aisrc{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.aisrc a{font:700 11px 'Rajdhani',sans-serif;color:#cfe6ff;text-decoration:none;background:rgba(124,198,255,.1);border:1px solid rgba(124,198,255,.3);border-radius:999px;padding:2px 8px}
+.aichips[hidden]{display:none}
 .aichips{display:flex;flex-wrap:wrap;gap:5px;padding:0 10px 8px}
 .aichips button{background:rgba(124,198,255,.1);border:1px solid rgba(124,198,255,.35);color:#cfe6ff;border-radius:999px;padding:4px 9px;font:700 11px 'Rajdhani',sans-serif;letter-spacing:.05em;cursor:pointer}
 .aichips button.check{background:rgba(89,224,154,.14);border-color:rgba(89,224,154,.45);color:#b9f5d6}
-.oc-in{display:flex;gap:6px;padding:0 10px 6px}
-#aiIn{font:600 14px 'Rajdhani',system-ui,sans-serif;color:#fff;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.3);border-radius:8px;padding:.45em .6em;outline:none;resize:none;user-select:text;-webkit-user-select:text;min-width:0;flex:1}
-#aiIn:focus{border-color:#7cc6ff}
-.oc-in button{background:#2f6bff;color:#fff;border:0;border-radius:8px;font:400 12px 'Russo One',Impact,sans-serif;letter-spacing:.08em;padding:0 12px;cursor:pointer}
-.oc-in button:disabled{opacity:.5}
-.oc-share{display:flex;gap:6px;align-items:center;padding:0 10px 10px;font-size:11px;color:#9fb6e0;cursor:pointer}
+.oc-share{display:flex;gap:6px;align-items:center;padding:0 10px 9px;font-size:11px;color:#9fb6e0;cursor:pointer}
 .oc-share input{accent-color:#4aa8ff;width:14px;height:14px;margin:0}
+/* mini helpers: he splits into up to two little orbs that sit at computers and research */
+.aimsg.crew{align-self:stretch;max-width:none;display:flex;gap:8px;justify-content:center;padding:10px 8px 8px;background:rgba(130,110,255,.08);border:1px solid rgba(167,101,255,.28)}
+.mini{flex:1;max-width:150px;display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0}
+.desk{position:relative;width:112px;height:62px}
+.mo{position:absolute;left:4px;top:6px;width:32px;height:32px;border-radius:50%;overflow:hidden;background:#3a2fd8;isolation:isolate;transform:translateZ(0);
+  -webkit-mask-image:-webkit-radial-gradient(white,black);box-shadow:inset -3px -4px 7px rgba(14,4,52,.6),inset 3px 3px 6px rgba(255,255,255,.35),0 4px 10px rgba(38,20,130,.5)}
+.mo .sw{position:absolute;inset:-35%;background:conic-gradient(from 0deg,#4f7dff,#a765ff,#ff6fb3,#ffae6b,#4fe0ff,#4f7dff);filter:blur(4px);animation:orbSwirl 4s linear infinite}
+.mo svg{position:absolute;left:50%;top:50%;width:18px;height:14px;margin:-6px 0 0 -7px;overflow:visible;transform:translate(3px,1.5px);transition:transform .3s}
+.mini.work .mo{animation:miniType .32s ease-in-out infinite alternate}
+@keyframes miniType{from{transform:translate(0,0) rotate(0)}to{transform:translate(1px,1.6px) rotate(4deg)}}
+.mini.away .mo{visibility:hidden}
+.scr{position:absolute;right:2px;top:2px;width:62px;height:40px;border-radius:5px;background:#060a1a;border:2px solid #39406a;overflow:hidden;box-shadow:0 0 12px rgba(80,140,255,.25)}
+.scr .ln{position:absolute;left:5px;right:5px;top:4px;display:flex;flex-direction:column;gap:3.5px}
+.mini.work .scr .ln{animation:scrUp 2.2s linear infinite}
+.scr .ln b{display:block;height:2.6px;border-radius:2px;background:#5fd0ff;opacity:.85}
+.mini.web .scr .ln b{background:#e8eefc;opacity:.7}
+.scr .ln b:nth-child(3n){background:#c58bff}.mini.web .scr .ln b:nth-child(4n){background:#7cc6ff}
+@keyframes scrUp{from{transform:translateY(0)}to{transform:translateY(-37px)}}
+.scr .ok{position:absolute;inset:0;display:grid;place-items:center;font:700 18px system-ui;color:#59e09a;background:rgba(6,10,26,.85);opacity:0;transition:opacity .25s}
+.mini.done .scr .ok,.mini.fail .scr .ok{opacity:1}.mini.fail .scr .ok{color:#9aa6c8}
+.stand{position:absolute;right:28px;top:42px;width:8px;height:6px;background:#39406a}
+.kb{position:absolute;left:0;width:66px;bottom:2px;height:11px;border-radius:3px;background:#1c2142;border:1px solid #39406a;display:flex;gap:2px;padding:2px 3px}
+.kb i{flex:1;border-radius:1.5px;background:#323a66}
+.mini.work .kb i{animation:keyHit .5s steps(1) infinite}
+.kb i:nth-child(2){animation-delay:.12s!important}.kb i:nth-child(3){animation-delay:.31s!important}.kb i:nth-child(4){animation-delay:.07s!important}
+.kb i:nth-child(5){animation-delay:.22s!important}.kb i:nth-child(6){animation-delay:.38s!important}.kb i:nth-child(7){animation-delay:.16s!important}.kb i:nth-child(8){animation-delay:.27s!important}
+@keyframes keyHit{0%{background:#323a66}20%{background:#8fd3ff}40%{background:#323a66}}
+.mini .cap{font:700 11px/1.25 'Rajdhani',sans-serif;color:#cfdcf6;text-align:center;max-width:100%}
+.mini .cap small{display:block;font-weight:600;color:#9fb6e0;letter-spacing:.04em}
+.aimsg.crewdone{align-self:flex-start;background:none;border:0;padding:0 2px;font:700 11px 'Rajdhani',sans-serif;color:#9fb6e0}
+.flyer{position:fixed;z-index:37;width:32px;height:32px;margin:-16px 0 0 -16px;border-radius:50%;pointer-events:none;
+  background:conic-gradient(from 30deg,#4f7dff,#a765ff,#ff6fb3,#ffae6b,#4fe0ff,#4f7dff);box-shadow:0 0 14px rgba(150,120,255,.8),inset -3px -4px 7px rgba(14,4,52,.5)}
+@media (prefers-reduced-motion:reduce){.mini.work .mo,.mini.work .scr .ln,.mini.work .kb i,.mo .sw{animation:none}}
 .menulinks{display:flex;justify-content:center;gap:18px;align-items:center}.menulinks a.linkbtn{text-decoration:none}
 .mpstatus{display:flex;align-items:center;gap:8px;font-weight:600;font-size:13px;color:#cfdcf6;line-height:1.3}
 .spin{width:12px;height:12px;border-radius:50%;border:2px solid rgba(255,255,255,.25);border-top-color:#7cc6ff;animation:spin .8s linear infinite;flex:none}
@@ -420,17 +469,22 @@ body.touch #playersBtn{transform:translateX(calc(-50% - 30px))}
         <ellipse class="eye" cx="10" cy="8" rx="2.4" ry="3.2" fill="#fff"/><ellipse class="eye" cx="22" cy="8" rx="2.4" ry="3.2" fill="#fff"/>
         <path class="smile small" d="M9.5 15.5 Q16 20.5 22.5 15.5" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>
         <path class="smile big" d="M8.5 14.5 Q16 23 23.5 14.5" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/>
+        <path class="smile hmm" d="M11.5 17 Q14 15.6 16.5 16.8 T21 16.4" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>
       </svg></div>
     </div>
+    <div class="ring" aria-hidden="true"><i></i></div>
   </div>
 </div>
-<div id="orbChat" hidden role="dialog" aria-label="Rocket Strike helper">
-  <div class="oc-swirl"></div>
-  <div class="oc-head"><b>RS HELPER</b><button type="button" id="orbClose" aria-label="Close">&times;</button></div>
-  <div id="aiLog"></div>
+<div id="orbTalk" hidden role="dialog" aria-label="Rocket Strike helper">
+  <div class="ot-head"><span>RS HELPER</span><button type="button" id="orbClose" aria-label="Close">&times;</button></div>
+  <div id="aiLog" aria-live="polite"></div>
   <div class="aichips" id="aiChips"></div>
-  <div class="oc-in"><textarea id="aiIn" rows="1" maxlength="600" placeholder="Ask me anything…"></textarea><button type="button" id="aiSend">ASK</button></div>
   <label class="oc-share"><input type="checkbox" id="aiShare" checked><span>Share my game log so I can find the exact problem</span></label>
+</div>
+<div id="orbBar" hidden>
+  <input id="aiIn" type="text" maxlength="600" autocomplete="off" enterkeyhint="send" placeholder="Ask me anything…" aria-label="Ask the helper">
+  <button type="button" class="ob-btn" id="aiCheck" title="Run a check" aria-label="Run a check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2.5-6 4 12 2.5-6H21"/></svg></button>
+  <button type="button" class="ob-btn send" id="aiSend" aria-label="Send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/></svg></button>
 </div>
 <div id="mp" class="screen">
   <div class="card mpcard">
@@ -2751,41 +2805,83 @@ function aiFormat(text){
   if(list)html+='<ul>'+list.join('')+'</ul>';
   return html||'<p>…</p>';
 }
+// Asks the helper. The server first decides whether to send mini helpers to research (the game's code, or
+// Wikipedia) and streams their progress, one JSON object per line; older servers just answer.
 async function askAI(question,opt){
   opt=opt||{};const q=String(question||'').replace(/[\u0000-\u0008\u000b-\u001f]/g,' ').trim().slice(0,opt.hideQuestion?1400:600);if(q.length<2||aiBusy)return false;
-  if(orbChat.hidden)toggleOrbChat(true);
+  if(!orbOpen)toggleOrbChat(true);
   if(!opt.hideQuestion)aiSay('u',q,true);
+  chipsEl.hidden=true;   // the quick questions only show until the first question
   AI_CHAT.push({role:'user',content:q});
   const base=serverBase();
   if(!base){AI_CHAT.pop();if(!opt.hideQuestion)aiSay('a','There\'s no game server here, so I can\'t answer. Open the game from one of the Rocket Strike sites.');return false;}
-  aiBusy=true;aiSendEl.disabled=true;orbMood('think');const wait=aiSay('a wait','Thinking…');
-  let ok=false;
+  aiBusy=true;aiSendEl.disabled=true;orbMood('think');
+  let wait=aiDots(),crew=null,ok=false,j=null,status=0;
   try{
-    const ctl=new AbortController();const to=setTimeout(()=>ctl.abort(),45000);
+    const ctl=new AbortController();const to=setTimeout(()=>ctl.abort(),75000);
     const r=await fetch(base+'/api/assistant',{method:'POST',headers:{'content-type':'application/json'},signal:ctl.signal,
-      body:JSON.stringify({messages:AI_CHAT.slice(-8),status:aiShareLog?aiStatus():'',log:aiShareLog?logText(80):''})});
-    clearTimeout(to);let j=null;try{j=await r.json();}catch(e){}
-    wait.remove();
-    if(r.ok&&j&&j.ok&&j.reply){AI_CHAT.push({role:'assistant',content:j.reply});aiSay('a',(opt.label?'**'+opt.label+'**\n':'')+j.reply);ok=true;}
-    else{const why=j&&j.reason;AI_CHAT.pop();
-      if(!opt.hideQuestion)aiSay('a',why==='not_set_up'||r.status===404?'The AI helper isn\'t set up on this game server yet.':why==='slow_down'?`One moment: you can ask again in ${j.wait||5} s.`:
-        why==='busy'?'Lots of questions right now. Try again in a minute.':'I couldn\'t answer right now. Try again in a bit.');}
-  }catch(e){wait.remove();AI_CHAT.pop();if(!opt.hideQuestion)aiSay('a','I couldn\'t reach the helper. Check your connection and try again.');}
+      body:JSON.stringify({messages:AI_CHAT.slice(-8),status:aiShareLog?aiStatus():'',log:aiShareLog?logText(80):'',stream:1,research:opt.noResearch?0:1,
+        lang:String(navigator.language||'en').slice(0,2).toLowerCase()})});
+    status=r.status;
+    if(/ndjson/.test(r.headers.get('content-type')||'')&&r.body&&r.body.getReader){
+      const rd=r.body.getReader(),dec=new TextDecoder();let buf='';
+      const handle=async ev=>{
+        if(ev.ev==='plan'&&Array.isArray(ev.tasks)&&ev.tasks.length){wait.remove();crew=await crewStart(ev.tasks.slice(0,2));}
+        else if(ev.ev==='task'&&crew)crewTask(crew,ev.i,ev.ok);
+        else if(ev.ev==='reply')j=ev;
+      };
+      for(;;){const {done,value}=await rd.read();if(done)break;buf+=dec.decode(value,{stream:true});
+        let k;while((k=buf.indexOf('\n'))>=0){const line=buf.slice(0,k).trim();buf=buf.slice(k+1);if(!line)continue;let ev;try{ev=JSON.parse(line);}catch(e){continue;}await handle(ev);}}
+      if(buf.trim()){try{await handle(JSON.parse(buf));}catch(e){}}
+    }else{try{j=await r.json();}catch(e){}}
+    clearTimeout(to);
+  }catch(e){j=j||{ok:false,reason:'net'};}
+  if(crew)await crewEnd(crew);
+  wait.remove();
+  if(j&&j.ok&&j.reply){AI_CHAT.push({role:'assistant',content:j.reply});const m=aiSay('a',(opt.label?'**'+opt.label+'**\n':'')+j.reply);aiSources(m,j.sources);ok=true;}
+  else{const why=j&&j.reason;AI_CHAT.pop();
+    if(!opt.hideQuestion)aiSay('a',why==='net'?'I couldn\'t reach the helper. Check your connection and try again.':why==='not_set_up'||status===404?'The AI helper isn\'t set up on this game server yet.':why==='slow_down'?`One moment: you can ask again in ${j.wait||5} s.`:
+      why==='busy'?'Lots of questions right now. Try again in a minute.':'I couldn\'t answer right now. Try again in a bit.');}
   aiBusy=false;aiSendEl.disabled=false;orbMood(ok?'happy':'');
   return ok;
 }
-/* ---- the helper orb: drag it anywhere, tap to chat, it can run a check and diagnose ---- */
-const orbEl=document.getElementById('orb'),orbChat=document.getElementById('orbChat'),aiLogEl=document.getElementById('aiLog'),aiInEl=document.getElementById('aiIn'),aiSendEl=document.getElementById('aiSend');
+function aiDots(){const d=aiSay('a dots','',true);d.innerHTML='<i></i><i></i><i></i>';d.setAttribute('aria-label','Thinking');placeChat();return d;}
+function aiSources(msg,src){
+  if(!Array.isArray(src)||!src.length||!msg)return;const w=h('div','aisrc');
+  for(const s of src.slice(0,4)){if(!s||!/^https:\/\/[a-z]{2,3}\.wikipedia\.org\//.test(String(s.url)))continue;
+    const a=h('a',null,'📖 '+String(s.title||'Wikipedia').slice(0,60));a.href=s.url;a.target='_blank';a.rel='noopener noreferrer';w.appendChild(a);}
+  if(w.children.length){msg.appendChild(w);placeChat();}
+}
+/* ---- the helper orb: drag it anywhere, tap him for the text bar, he can run a check and send mini helpers to research ---- */
+const orbEl=document.getElementById('orb'),orbBar=document.getElementById('orbBar'),orbTalk=document.getElementById('orbTalk'),aiLogEl=document.getElementById('aiLog'),aiInEl=document.getElementById('aiIn'),aiSendEl=document.getElementById('aiSend');
 const ORB={x:1,y:.36};try{Object.assign(ORB,JSON.parse(localStorage.getItem('rs-orb')||'{}'));}catch(e){}
+let orbOpen=false,orbAnim=false;
+const rectOf=el=>el&&el.getBoundingClientRect?el.getBoundingClientRect():null;
+const reduceMotion=()=>!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
 function placeOrb(){
   const w=62,m=8,x=clamp(ORB.x*(innerWidth-w),m,innerWidth-w-m),y=clamp(ORB.y*(innerHeight-w),m,innerHeight-w-m);
-  orbEl.style.left=x+'px';orbEl.style.top=y+'px';if(!orbChat.hidden)placeChat();
+  orbEl.style.left=x+'px';orbEl.style.top=y+'px';
+  orbEl.classList.toggle('ringL',x+w/2>innerWidth/2);   // the loading ring sits on the side facing the middle
+  if(orbOpen)placeChat();
 }
+// The bar goes beside him, towards the middle of the screen (or above/below him when there's no room), and the
+// answers go above the bar, or below it when he's near the top.
 function placeChat(){
-  const r=orbEl.getBoundingClientRect(),cw=orbChat.offsetWidth||300,ch=orbChat.offsetHeight||380,m=10;
-  let x=r.left+r.width/2-cw/2,y=r.top-ch-10;if(y<m)y=r.bottom+10;
-  if(y+ch>innerHeight-m)y=Math.max(m,innerHeight-ch-m);
-  orbChat.style.left=clamp(x,m,innerWidth-cw-m)+'px';orbChat.style.top=y+'px';
+  if(!orbOpen)return;
+  const o=rectOf(orbEl);if(!o||!o.width)return;
+  const m=10,W=innerWidth,H=innerHeight,BH=48,cx=o.left+o.width/2,cy=o.top+o.height/2,toLeft=cx>W/2;
+  let bw=Math.min(380,toLeft?o.left-10-m:W-o.right-10-m),bx,by,side=true;
+  if(bw>=230){bx=toLeft?o.left-10-bw:o.right+10;by=cy-BH/2;}
+  else{side=false;bw=Math.min(380,W-2*m);bx=clamp(cx-bw/2,m,W-bw-m);by=cy>H/2?o.top-8-BH:o.bottom+8;}
+  by=clamp(by,m,H-BH-m);
+  orbBar.style.left=bx+'px';orbBar.style.top=by+'px';orbBar.style.width=bw+'px';
+  const up=by-8-m,down=H-(by+BH+8)-m;
+  const goUp=side?(up>=Math.min(300,down)||up>down):cy>H/2;
+  const room=Math.max(120,goUp?up:down);
+  orbTalk.style.width=bw+'px';orbTalk.style.left=bx+'px';orbTalk.style.maxHeight=Math.min(440,room)+'px';
+  const th=orbTalk.offsetHeight||Math.min(300,room);
+  orbTalk.style.top=(goUp?by-8-th:by+BH+8)+'px';
+  orbTalk.dataset.up=goUp?'1':'';
 }
 let orbDrag=null;
 orbEl.addEventListener('pointerdown',e=>{orbDrag={id:e.pointerId,sx:e.clientX,sy:e.clientY,ox:orbEl.offsetLeft,oy:orbEl.offsetTop,moved:false};orbEl.setPointerCapture(e.pointerId);e.stopPropagation();e.preventDefault();});
@@ -2795,65 +2891,118 @@ orbEl.addEventListener('pointermove',e=>{
   ORB.x=clamp((orbDrag.ox+dx)/Math.max(1,innerWidth-62),0,1);ORB.y=clamp((orbDrag.oy+dy)/Math.max(1,innerHeight-62),0,1);placeOrb();
 });
 const orbUp=e=>{if(!orbDrag||e.pointerId!==orbDrag.id)return;const moved=orbDrag.moved;orbDrag=null;orbEl.classList.remove('dragging');
-  if(moved){try{localStorage.setItem('rs-orb',JSON.stringify(ORB));}catch(err){}}else{orbSpin();toggleOrbChat();}};
+  if(moved){try{localStorage.setItem('rs-orb',JSON.stringify(ORB));}catch(err){}}else toggleOrbChat();};
 orbEl.addEventListener('pointerup',orbUp);orbEl.addEventListener('pointercancel',e=>{orbDrag=null;orbEl.classList.remove('dragging');});
 orbEl.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();toggleOrbChat();}});
 document.getElementById('orbClose').addEventListener('click',()=>toggleOrbChat(false));
-for(const el of [orbChat,aiInEl])el.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Escape')toggleOrbChat(false);});
-orbChat.addEventListener('pointerdown',e=>e.stopPropagation());
-// Opening: the orb itself stretches into the chat (it keeps its swirl until it has grown), and closing shrinks the
-// chat back into the orb.
-let orbMorphing=null;
-function morphBox(from,to,ms){
-  if(!orbChat.animate)return Promise.resolve();
-  const k=r=>({left:r.left+'px',top:r.top+'px',width:r.width+'px',height:r.height+'px'});
-  const a=orbChat.animate([{...k(from),borderRadius:'50%'},{...k(to),borderRadius:'16px'}],{duration:ms,easing:'cubic-bezier(.2,.9,.25,1)'});
-  return new Promise(res=>{a.onfinish=res;a.oncancel=res;});
-}
+for(const el of [orbBar,orbTalk])el.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Escape')toggleOrbChat(false);});
+for(const el of [orbBar,orbTalk])el.addEventListener('pointerdown',e=>e.stopPropagation());
+// where the orb's middle is, relative to an element's middle (for the slide-out and absorb animations)
+function fromOrb(el){const o=rectOf(orbEl),r=rectOf(el);if(!o||!r||!r.width)return null;return {dx:o.left+o.width/2-(r.left+r.width/2),dy:o.top+o.height/2-(r.top+r.height/2)};}
+function anim(el,frames,o){if(!el||!el.animate)return Promise.resolve();const a=el.animate(frames,o);return new Promise(res=>{a.onfinish=res;a.oncancel=res;});}
+function orbPop(cls,ms){orbEl.classList.remove(cls);void orbEl.offsetWidth;orbEl.classList.add(cls);setTimeout(()=>orbEl.classList.remove(cls),ms||520);}
+// Opening: the text bar slides out of him and the answers grow from him. Closing: he sucks both back in and gulps.
 async function toggleOrbChat(open){
-  open=open===undefined?orbChat.hidden:open;
-  if(orbMorphing||open===!orbChat.hidden)return;
-  const reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const ob=orbEl.querySelector?orbEl.getBoundingClientRect():null;
-  const orbRect=ob&&ob.width?{left:ob.left+5,top:ob.top+5,width:ob.width-10,height:ob.height-10}:null;
+  open=open===undefined?!orbOpen:open;
+  if(orbAnim||open===orbOpen)return;
+  const smooth=!reduceMotion()&&!!orbBar.animate;
   if(open){
     releaseKeys&&releaseKeys();
-    if(!aiLogEl.children.length)aiSay('a','Hi! I\'m the Rocket Strike helper 😊 Ask me for tips, or tap **Run a check** and I\'ll test your game and tell you what\'s wrong.');
-    orbChat.hidden=false;placeChat();orbEl.classList.add('open');
-    if(orbRect&&!reduce){
-      const c=orbChat.getBoundingClientRect();orbChat.classList.add('morph');orbEl.classList.add('gone');
-      orbMorphing=morphBox(orbRect,{left:c.left,top:c.top,width:c.width,height:c.height},430);await orbMorphing;orbMorphing=null;
-      orbChat.classList.remove('morph');
-    }else orbEl.classList.add('gone');
+    if(!aiLogEl.children.length)aiSay('a','Hi! I\'m the Rocket Strike helper 😊 Ask me anything about the game, or tap the pulse button and I\'ll run a check. For tricky questions my mini helpers research the game\'s code or look things up.');
+    orbOpen=true;orbBar.hidden=false;orbTalk.hidden=false;orbEl.classList.add('open');placeChat();orbSpin();
+    if(smooth){
+      orbAnim=true;const b=fromOrb(orbBar),t=fromOrb(orbTalk);
+      const out=(d,ms,delay)=>d?{frames:[{transform:`translate(${d.dx}px,${d.dy}px) scale(.08,.3)`,opacity:0,filter:'blur(6px)'},{transform:'none',opacity:1,filter:'blur(0)'}],o:{duration:ms,delay,easing:'cubic-bezier(.2,.9,.25,1)',fill:'backwards'}}:null;
+      const A=out(b,420,0),B=out(t,460,90);
+      await Promise.all([A&&anim(orbBar,A.frames,A.o),B&&anim(orbTalk,B.frames,B.o)]);orbAnim=false;
+    }
     setTimeout(()=>{aiLogEl.scrollTop=aiLogEl.scrollHeight;if(!IS_TOUCH)aiInEl.focus();},0);
   }else{
-    if(orbRect&&!reduce&&orbChat.getBoundingClientRect){
-      const c=orbChat.getBoundingClientRect();orbChat.classList.add('morph');
-      orbMorphing=morphBox({left:c.left,top:c.top,width:c.width,height:c.height},orbRect,320);await orbMorphing;orbMorphing=null;
-      orbChat.classList.remove('morph');
+    if(document.activeElement===aiInEl&&aiInEl.blur)aiInEl.blur();
+    if(smooth){
+      orbAnim=true;const b=fromOrb(orbBar),t=fromOrb(orbTalk);
+      const suck=(d,ms,delay)=>d?{frames:[{transform:'none',opacity:1,filter:'blur(0)'},{transform:`translate(${d.dx}px,${d.dy}px) scale(.04,.18)`,opacity:.2,filter:'blur(5px)'}],o:{duration:ms,delay,easing:'cubic-bezier(.55,0,.8,.3)',fill:'forwards'}}:null;
+      const A=suck(t,380,0),B=suck(b,360,70);
+      await Promise.all([A&&anim(orbTalk,A.frames,A.o),B&&anim(orbBar,B.frames,B.o)]);
+      for(const el of [orbBar,orbTalk])if(el.getAnimations)for(const x of el.getAnimations())x.cancel();
+      orbAnim=false;
     }
-    orbChat.hidden=true;orbEl.classList.remove('open','gone');orbSpin();
+    orbOpen=false;orbBar.hidden=true;orbTalk.hidden=true;orbEl.classList.remove('open');orbPop('gulp');
+    orbEl.classList.add('happy');setTimeout(()=>{if(!orbEl.classList.contains('think'))orbEl.classList.remove('happy');},900);
   }
 }
-function aiSay(cls,text,raw){const d=h('div','aimsg '+cls);if(raw)d.textContent=text;else d.innerHTML=aiFormat(text);aiLogEl.appendChild(d);aiLogEl.scrollTop=aiLogEl.scrollHeight;return d;}
+function aiSay(cls,text,raw){const d=h('div','aimsg '+cls);if(raw)d.textContent=text;else d.innerHTML=aiFormat(text);aiLogEl.appendChild(d);aiLogEl.scrollTop=aiLogEl.scrollHeight;placeChat();return d;}
 function orbSpin(){orbEl.classList.remove('spin');void orbEl.offsetWidth;orbEl.classList.add('spin');setTimeout(()=>orbEl.classList.remove('spin'),900);}
-function orbMood(m){orbEl.classList.toggle('think',m==='think');orbEl.classList.toggle('happy',m==='happy');if(m==='happy'){orbSpin();setTimeout(()=>orbEl.classList.remove('happy'),2600);}}
-// the face looks around: random glances, and towards the chat while it's open. Turning to the side squeezes it
-// a little, as if it's moving round a ball.
+function orbMood(m){orbEl.classList.toggle('think',m==='think');orbEl.classList.toggle('happy',m==='happy');
+  if(m==='think')lookAtRing();
+  if(m==='happy'){orbSpin();setTimeout(()=>orbEl.classList.remove('happy'),2600);}}
+// the face looks around: random glances, towards the chat while it's open, and at the loading ring while he thinks
+// (now and then glancing up, as if pondering). Turning to the side squeezes it a little, as if moving round a ball.
 const orbFace=document.getElementById('orbFace');
 function orbLook(x,y){const lx=clamp(x,-8,8),ly=clamp(y,-6,5);orbFace.style.setProperty('--lx',lx+'px');orbFace.style.setProperty('--ly',ly+'px');
   orbFace.style.setProperty('--sx',(1-Math.abs(lx)/26).toFixed(3));orbFace.style.setProperty('--sy',(1-Math.abs(ly)/30).toFixed(3));}
+function lookAtRing(){const l=orbEl.classList.contains('ringL');orbLook(l?-6:6,5);}
 setInterval(()=>{
-  if(orbDrag||orbEl.classList.contains('think')||document.hidden)return;
-  if(!orbChat.hidden){const o=orbEl.getBoundingClientRect(),c=orbChat.getBoundingClientRect();const dx=(c.left+c.width/2)-(o.left+o.width/2),dy=(c.top+c.height/2)-(o.top+o.height/2),d=Math.hypot(dx,dy)||1;
-    orbLook(dx/d*6+(Math.random()-.5)*2,dy/d*5);return;}
+  if(orbDrag||document.hidden)return;
+  if(orbEl.classList.contains('think')){if(Math.random()<.22)orbLook((Math.random()-.5)*6,-5);else lookAtRing();return;}
+  if(orbOpen){const o=rectOf(orbEl),c=rectOf(orbTalk);if(o&&c&&c.width){const dx=(c.left+c.width/2)-(o.left+o.width/2),dy=(c.top+c.height/2)-(o.top+o.height/2),d=Math.hypot(dx,dy)||1;
+    orbLook(dx/d*6+(Math.random()-.5)*2,dy/d*5);}return;}
   const r=Math.random();if(r<.3)orbLook(0,0);else orbLook((Math.random()*2-1)*8,(Math.random()*2-1)*5);
-},2200);
+},1700);
+/* ---- mini helpers: he splits into up to two little orbs; each sits at a computer and researches, then they merge back ---- */
+const MINI_FACE='<svg viewBox="0 0 32 24" aria-hidden="true"><ellipse cx="10" cy="8" rx="2.6" ry="3.4" fill="#fff"/><ellipse cx="22" cy="8" rx="2.6" ry="3.4" fill="#fff"/><path d="M10 15.5 Q16 20 22 15.5" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/></svg>';
+function flyBetween(from,to,ms,startScale,endScale){
+  if(!from||!to||reduceMotion()||!document.body.animate)return Promise.resolve();
+  const f=h('div','flyer');f.style.left='0';f.style.top='0';document.body.appendChild(f);
+  const p=anim(f,[{transform:`translate(${from.x}px,${from.y}px) scale(${startScale})`,opacity:.9},{transform:`translate(${(from.x+to.x)/2}px,${Math.min(from.y,to.y)-40}px) scale(${(startScale+endScale)/2+.25})`,opacity:1,offset:.5},
+    {transform:`translate(${to.x}px,${to.y}px) scale(${endScale})`,opacity:.95}],{duration:ms,easing:'cubic-bezier(.35,.1,.25,1)'});
+  return p.then(()=>f.remove());
+}
+const midOf=el=>{const r=rectOf(el);return r&&r.width?{x:r.left+r.width/2,y:r.top+r.height/2}:null;};
+async function crewStart(tasks){
+  const card=h('div','aimsg crew'),minis=[];
+  tasks.forEach(t=>{
+    const web=t.kind==='web',mini=h('div','mini work away'+(web?' web':''));
+    mini.innerHTML=`<div class="desk"><div class="mo"><div class="sw"></div>${MINI_FACE}</div><div class="scr"><div class="ln">${'<b></b>'.repeat(16)}</div><div class="ok">✓</div></div><div class="stand"></div><div class="kb">${'<i></i>'.repeat(8)}</div></div>`;
+    for(const [i,b] of [...mini.querySelectorAll?mini.querySelectorAll('.ln b'):[]].entries())b.style.width=(38+((i*37)%55))+'%';
+    const cap=h('div','cap');cap.appendChild(h('small',null,web?'🌐 LOOKING IT UP':'💻 READING THE CODE'));cap.appendChild(document.createTextNode(String(t.label||'').slice(0,40)));
+    mini.appendChild(cap);card.appendChild(mini);minis.push(mini);
+  });
+  aiLogEl.appendChild(card);aiLogEl.scrollTop=aiLogEl.scrollHeight;placeChat();
+  orbPop('split',560);
+  const o=midOf(orbEl);
+  await Promise.all(minis.map((mini,i)=>new Promise(res=>setTimeout(()=>{
+    const mo=mini.querySelector?mini.querySelector('.mo'):null;
+    flyBetween(o,midOf(mo),560,1.5,1).then(()=>{mini.classList.remove('away');res();});
+  },i*140))));
+  return {card,minis,tasks,done:new Set(),dots:null};
+}
+function crewTask(crew,i,ok){
+  const mini=crew.minis[i];if(!mini)return;crew.done.add(i);
+  mini.classList.remove('work');mini.classList.add(ok?'done':'fail');
+  const okEl=mini.querySelector?mini.querySelector('.ok'):null;if(okEl&&!ok)okEl.textContent='–';
+  if(crew.done.size===crew.minis.length&&!crew.dots){crew.dots=aiDots();}   // the main helper writes the answer
+}
+async function crewEnd(crew){
+  const o=midOf(orbEl);
+  await Promise.all(crew.minis.map((mini,i)=>new Promise(res=>setTimeout(()=>{
+    const mo=mini.querySelector?mini.querySelector('.mo'):null,from=midOf(mo);mini.classList.add('away');
+    flyBetween(from,o,480,1,.35).then(res);
+  },i*120))));
+  orbPop('gulp');
+  if(crew.dots)crew.dots.remove();
+  const names=crew.tasks.map(t=>String(t.label||'').slice(0,40)).join(' · ');
+  const n=crew.tasks.length,summary=h('div','aimsg crewdone',`✓ ${n===1?'My mini helper':'My 2 mini helpers'} researched: ${names}`);
+  crew.card.replaceWith?crew.card.replaceWith(summary):crew.card.remove();
+  placeChat();
+}
 const chipsEl=document.getElementById('aiChips');
-for(const [label,fn] of [['Run a check',()=>runCheck()],['How do I flip?',()=>askAI('How do I flip?')],['Tips to score more',()=>askAI('Give me tips to score more goals.')],['The game lags',()=>askAI('The game lags. What can I do?')]]){
+for(const [label,fn] of [['Run a check',()=>runCheck()],['How do I flip?',()=>askAI('How do I flip?')],['How does the ball work?',()=>askAI('How does the ball work in this game? Look at the code.')],['The game lags',()=>askAI('The game lags. What can I do?')]]){
   const b=h('button',label==='Run a check'?'check':'',label);b.type='button';b.addEventListener('click',fn);chipsEl.appendChild(b);}
-aiSendEl.addEventListener('click',()=>{const v=aiInEl.value;aiInEl.value='';askAI(v);});
-aiInEl.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();const v=aiInEl.value;aiInEl.value='';askAI(v);}});
+const sendQ=()=>{const v=aiInEl.value;if(!v.trim()||aiBusy)return;aiInEl.value='';askAI(v);};
+aiSendEl.addEventListener('click',sendQ);
+document.getElementById('aiCheck').addEventListener('click',()=>runCheck());
+aiInEl.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendQ();}});
 document.getElementById('aiShare').addEventListener('change',e=>{aiShareLog=e.target.checked;});
 addEventListener('resize',placeOrb);placeOrb();
 
@@ -2902,7 +3051,7 @@ async function runCheck(){
   checking=false;
   // diagnosis: ask the helper, with a built-in fallback
   const q='I ran the Rocket Strike check. Results:\n'+lines.join('\n')+'\nWhat is the diagnosis, and what should I do?';
-  const ok=await askAI(q,{hideQuestion:true,label:'Here\'s what I found:'});
+  const ok=await askAI(q,{hideQuestion:true,noResearch:true,label:'Here\'s what I found:'});
   if(!ok)aiSay('a',localDiagnosis(lines));
   orbMood(ok?'happy':'');
 }
