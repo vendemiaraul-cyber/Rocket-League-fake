@@ -1,0 +1,5 @@
+# Netlify serves the game from public/. Netlify can't run the multiplayer server (it needs
+# WebSockets and Durable Objects), so online play uses the Cloudflare Worker: set GAME_SERVER
+# in public/index.html, or open the site with ?server=https://rocket-strike.<you>.workers.dev
+[build]
+  publish = "public"
