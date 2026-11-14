@@ -10,7 +10,8 @@ Built with three.js; multiplayer runs on Cloudflare Workers with Durable Objects
 | `public/index.html` | The whole game (one file). Plays against the bot anywhere; online play turns on when it finds the server. |
 | `src/worker.js` | The multiplayer server: serves the game, answers `/api/health`, and relays players through rooms at `/ws`. |
 | `wrangler.jsonc` | Cloudflare config: static assets, the `GameRoom` Durable Object and its migration. |
-| `functions/` | Pages Functions: on a Cloudflare Pages site, forward `/api/health` and `/ws` to a linked Worker. |
+| `functions/` | Pages Functions: on a Cloudflare Pages site, forward `/api/health` and `/ws` to a linked Worker, or (`server.json`) send players straight to it. |
+| `scripts/site-server.mjs` | Netlify build step that turns the `GAME_SERVER` setting into `public/server.json`. |
 | `netlify.toml`, `index.html` | Let Netlify, Cloudflare Pages and GitHub Pages serve the game page. |
 
 ## How multiplayer works
@@ -49,6 +50,8 @@ Pages serves the game, and the `functions/` folder forwards multiplayer to a Wor
 4. Redeploy the Pages project (Deployments → latest → Retry deployment).
 
 The game then shows "Running on Cloudflare Pages · linked to a Worker · game server online". Without the link it shows "game server not linked yet" and plays against the bot.
+
+**Faster: connect players straight to the Worker.** With only the binding, every connection goes through this site's `/ws` Pages Function first. To skip that hop, add a variable in the Pages project → **Settings → Variables and Secrets**: `GAME_SERVER` = your Worker's address (for example `https://my-game.example.workers.dev`), then redeploy. `functions/server.json.js` hands that address to the game, which then connects directly, the same way Netlify does. The menu shows "Running on Cloudflare Pages · game server on Cloudflare Workers". Keep the binding as a fallback.
 
 ### Netlify, GitHub Pages
 
