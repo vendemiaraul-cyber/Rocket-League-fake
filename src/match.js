@@ -3,7 +3,7 @@
 // background. It follows the same rules as hostTick / hostStartMatch / hostKickoff / hostGoal in
 // public/index.html and sends the same match state ("M") the browsers already understand.
 import {
-  V3, Quat, makeBall, makeCar, placeCar, spawnFor, useBall, LAST, stepBall, stepCar, carBall, carPush, botThink,
+  V3, Quat, makeBall, makeCar, placeCar, spawnFor, useBall, LAST, stepBall, stepCar, carBall, carPush, carCar, botThink,
   AZ, BALL_R, CAR_H,
 } from './physics.js';
 
@@ -28,6 +28,8 @@ export class Match {
     this.startSeen = 0;
     this.hit = new Map();   // peer -> touch cooldown
     this.col = makeCar(0);  // reusable stand-in for a player's car when it touches the ball
+    this.ap = new Map();    // peer -> car the server drives while that player is away (tab hidden, gone quiet or left)
+    this.names = new Map(); // peer -> last name we saw, for players who left
   }
 
   // players: [{peer, d (their latest presence), at (ms when it arrived)}], owner: peer id
@@ -68,12 +70,12 @@ export class Match {
       case 'countdown': M.rem -= dt; if (M.rem <= 0) { M.ph = 'play'; M.rem = 0; } break;
       case 'play': M.clk -= dt; if (M.clk <= 0) { M.clk = 0; M.ph = 'over'; M.rem = 8; } break;
       case 'goal': M.rem -= dt; if (M.rem <= 0) { if (M.clk <= 0) { M.ph = 'over'; M.rem = 8; } else this.kickoff(); } break;
-      case 'over': M.rem -= dt; if (M.rem <= 0) { M.ph = 'lobby'; M.lr = 30; M.ro = []; this.bot.active = false; } break;
+      case 'over': M.rem -= dt; if (M.rem <= 0) { M.ph = 'lobby'; M.lr = 30; M.ro = []; this.bot.active = false; this.ap.clear(); } break;
     }
 
     const live = M.ph === 'countdown' || M.ph === 'play' || M.ph === 'goal';
     if (live) this.physics(dt, players, now);
-    else this.bot.active = false;
+    else { this.bot.active = false; if (M.ph === 'lobby' || M.ph === 'vote') this.ap.clear(); }
   }
 
   start(peerIds) {
@@ -93,6 +95,8 @@ export class Match {
     const br = M.ro.find(r => r[0] === 'bot');
     if (br) { this.bot.team = br[1]; this.bot.nick = 'BOT'; const s = spawnFor(br); placeCar(this.bot, s.pos, s.yaw); this.bot.active = true; }
     else this.bot.active = false;
+    // autopilot cars go to their kickoff spot too
+    for (const [peer, car] of this.ap) { const r = M.ro.find(x => x[0] === peer); if (r) { const s = spawnFor(r); placeCar(car, s.pos, s.yaw); } else this.ap.delete(peer); }
     this.hit.clear();
   }
 
@@ -116,11 +120,38 @@ export class Match {
       else { const bi = bot.inp; bi.throttle = M.ph === 'goal' ? 0.5 : 0; bi.steer = bi.pitch = bi.roll = 0; bi.boost = false; bi.jumpPressed = false; }
       bot.boost = Math.min(100, bot.boost + 8 * dt);   // stands in for boost pads
     }
+    // Players who are away (tab hidden, no update for 1.5 s, or left the room) get an autopilot car,
+    // driven like the bot, so their car never stands frozen in the way. It hands back when they return.
+    const byPeer = new Map(players.map(p => [p.peer, p]));
+    for (const p of players) if (p.d.nm) this.names.set(p.peer, cleanName(p.d.nm));
+    for (const r of M.ro) {
+      if (r[0] === 'bot') continue;
+      const p = byPeer.get(r[0]);
+      const away = !p || p.d.hid === 1 || now - p.at > 1500;
+      if (away && !this.ap.has(r[0])) {
+        const car = makeCar(r[1]); car.nick = this.names.get(r[0]) || 'PLAYER'; car.active = true;
+        const c = p && Array.isArray(p.d.c) && p.d.c.length >= 11 ? p.d.c.map(num) : null;
+        if (c) { car.pos.set(c[0], Math.max(CAR_H, c[1]), c[2]); car.q.set(c[3], c[4], c[5], c[6]).normalize(); car.vel.set(c[7], c[8], c[9]);
+          const fx = 2 * (car.q.x * car.q.z + car.q.w * car.q.y), fz = 1 - 2 * (car.q.x * car.q.x + car.q.y * car.q.y);
+          car.yaw = Math.atan2(fx, fz); car.grounded = !!(c[10] & 2); car.boost = 33; }
+        else { const s = spawnFor(r); placeCar(car, s.pos, s.yaw); }
+        this.ap.set(r[0], car);
+      } else if (!away && this.ap.has(r[0])) this.ap.delete(r[0]);
+    }
+    for (const peer of this.ap.keys()) if (!M.ro.some(r => r[0] === peer)) this.ap.delete(peer);
+    const sims = [];   // cars the server simulates: the bot and autopilot cars
+    if (bot.active) sims.push(bot);
+    for (const car of this.ap.values()) {
+      if (M.ph === 'play') botThink(car, this.t);
+      else { const ci = car.inp; ci.throttle = M.ph === 'goal' ? 0.5 : 0; ci.steer = ci.pitch = ci.roll = 0; ci.boost = false; ci.jumpPressed = false; }
+      car.boost = Math.min(100, car.boost + 8 * dt);
+      sims.push(car);
+    }
     // where each player's car is right now: their latest update run forward by the time since they sent it
     const cars = [];
     for (const p of players) {
       const r = M.ro.find(x => x[0] === p.peer); const c = p.d.c;
-      if (!r || !Array.isArray(c) || c.length < 11) continue;
+      if (!r || this.ap.has(p.peer) || !Array.isArray(c) || c.length < 11) continue;
       const s = c.map(num);
       const e = clamp((now - p.at) / 1000 + clamp(num(p.d.rt), 10, 600) / 2000, 0, 0.3);
       cars.push({ peer: p.peer, team: r[1], nick: cleanName(p.d.nm) || 'PLAYER',
@@ -130,10 +161,11 @@ export class Match {
     const n = Math.max(1, Math.ceil(sdt * 120)), h = sdt / n;
     const col = this.col;
     for (let i = 0; i < n; i++) {
-      if (bot.active) { stepCar(bot, h); for (const c of cars) carPush(bot, { pos: tmpPos(c, i * h), vel: c.vel }); }
+      for (const s of sims) { stepCar(s, h); for (const c of cars) carPush(s, { pos: tmpPos(c, i * h), vel: c.vel }); }
+      for (let a = 0; a < sims.length; a++) for (let b = a + 1; b < sims.length; b++) carCar(sims[a], sims[b]);
       if (!B.scored && M.ph !== 'countdown') {
         stepBall(h);
-        if (bot.active) carBall(bot);
+        for (const s of sims) carBall(s);
         for (const c of cars) {
           col.team = c.team; col.nick = c.nick; col.pos.copy(tmpPos(c, i * h)); col.q.copy(c.q); col.vel.copy(c.vel);
           col.angVel.set(0, 0, 0); col.grounded = c.grounded; col.hitCD = (this.hit.get(c.peer) || 0) - h;
@@ -145,7 +177,7 @@ export class Match {
         }
       }
     }
-    bot.inp.jumpPressed = false;
+    for (const s of sims) s.inp.jumpPressed = false;
   }
 
   // the match state to send: same shape as the host browser's M
@@ -155,6 +187,8 @@ export class Match {
     M.b = [r2(B.pos.x), r2(B.pos.y), r2(B.pos.z), r2(B.vel.x), r2(B.vel.y), r2(B.vel.z)];
     M.bot = bot.active ? [r2(bot.pos.x), r2(bot.pos.y), r2(bot.pos.z), r3(bot.q.x), r3(bot.q.y), r3(bot.q.z), r3(bot.q.w),
       r2(bot.vel.x), r2(bot.vel.y), r2(bot.vel.z), (bot.boosting ? 1 : 0) | (bot.grounded ? 2 : 0)] : null;
+    M.ap = [...this.ap].map(([peer, c]) => [peer, c.nick, r2(c.pos.x), r2(c.pos.y), r2(c.pos.z), r3(c.q.x), r3(c.q.y), r3(c.q.z), r3(c.q.w),
+      r2(c.vel.x), r2(c.vel.y), r2(c.vel.z), (c.boosting ? 1 : 0) | (c.grounded ? 2 : 0)]);
     // echo each player's latest stamp and how long we held it, so they can measure their real round trip
     M.echo = players.filter(p => typeof p.d.ts === 'number').map(p => [p.peer, p.d.ts, Math.round(now - p.at)]);
     M.rem = r2(M.rem); M.lr = r2(M.lr); M.clk = r2(M.clk);

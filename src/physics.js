@@ -136,6 +136,12 @@ export function stepCar(c,h){
   }
   if(c.pos.y>48){c.pos.y=48;if(c.vel.y>0)c.vel.y=0;}
 }
+export function carCar(a,b){
+  const d=sT.subVectors(b.pos,a.pos);const L=d.length();if(L>3.4||L<1e-4)return;d.divideScalar(L);
+  const pen=3.4-L;a.pos.addScaledVector(d,-pen/2);b.pos.addScaledVector(d,pen/2);
+  const rel=sA.subVectors(b.vel,a.vel).dot(d);
+  if(rel<0){const j=-1.3*rel/2;a.vel.addScaledVector(d,-j);b.vel.addScaledVector(d,j);if(-rel>12){a.vel.y+=3;b.vel.y+=3;a.grounded=b.grounded=false;}}
+}
 export function carPush(a,b){
   const d=sT.subVectors(a.pos,b.pos);const L=d.length();if(L>3.4||L<1e-4)return;d.divideScalar(L);
   a.pos.addScaledVector(d,3.4-L);const rel=sA.subVectors(a.vel,b.vel).dot(d);if(rel<0)a.vel.addScaledVector(d,-1.15*rel);
