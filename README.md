@@ -8,7 +8,8 @@ Built with three.js; multiplayer runs on Cloudflare Workers with Durable Objects
 | Path | What it is |
 | --- | --- |
 | `public/index.html` | The whole game (one file). Plays against the bot anywhere; online play turns on when it finds the server. |
-| `src/worker.js` | The multiplayer server: serves the game, answers `/api/health`, and relays players through rooms at `/ws`. |
+| `src/worker.js` | The multiplayer server: serves the game, answers `/api/health`, relays players through rooms at `/ws`, and runs each match. |
+| `src/match.js`, `src/physics.js` | The match the server runs (lobby, vote, kickoff, ball, bot, goals, clock) and its physics, copied from the game. |
 | `wrangler.jsonc` | Cloudflare config: static assets, the `GameRoom` Durable Object and its migration. |
 | `functions/` | Pages Functions: on a Cloudflare Pages site, forward `/api/health` and `/ws` to a linked Worker, or (`server.json`) send players straight to it. |
 | `scripts/site-server.mjs` | Netlify build step that turns the `GAME_SERVER` setting into `public/server.json`. |
@@ -19,8 +20,10 @@ Built with three.js; multiplayer runs on Cloudflare Workers with Durable Objects
 - The game shows where it's hosted (Cloudflare Workers, Cloudflare Pages, Netlify, Vercel, GitHub Pages, local…), from the address or, on a custom domain, from the page's response headers.
 - When the page opens it asks `/api/health`. If the answer says `"platform": "cloudflare"`, the MULTIPLAYER button connects; otherwise the game stays in bot-only mode.
 - Every room is one Durable Object. `lobby` is the server list; each hosted match gets its own room named after its code (for example `rs-ab12cd`).
-- Each player sends their state (car, chat, votes) about 30 times a second over a WebSocket, and the room relays it to everyone else. The host's browser is the referee for the ball, score, clock and reports.
-- Only the host moves the ball. Joining players drive their own car and send where it is; the host lets those cars touch its ball. On a joining player's screen the ball is the host's ball, run forward by the measured delay and replayed with their own car's recent path, so their touches show right away and match what the host decides. Other cars and the bot are shown a moment in the past and glide between updates.
+- Each player sends their state (car, chat, votes) about 30 times a second over a WebSocket, and the room relays it to everyone else.
+- **The server runs the match.** Each match room's Durable Object runs the lobby timer, vote, kickoff, ball, bot, goals and clock (`src/match.js`, with the physics in `src/physics.js` copied from the game) and sends the match state about 30 times a second. No browser has to stay in front, so the host can switch tabs and the match goes on. The host only has the START MATCH button and decides reports; those decisions go to the server.
+- Players drive their own car and send where it is; the server lets those cars touch its ball. On each player's screen the ball is the server's ball run forward by the measured delay and replayed with their own car's recent path, so their touches show right away and match what the server decides. Other cars and the bot are shown a moment in the past and glide between updates.
+- With an older Worker that doesn't run matches (`/api/health` without `"match": "server"`), the host's browser runs the match as before.
 - No accounts: anyone who opens the link can host or join. Names, strikes and suspensions are stored in each player's browser.
 
 ## Deploy on Cloudflare
