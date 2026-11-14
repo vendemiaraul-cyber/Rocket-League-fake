@@ -1,0 +1,38 @@
+# Trains Rocket Strike AI (PyTorch) whenever its brain or training code changes on main, and commits the trained
+# model (public/ai/), the test questions (ai/golden.json) and the report (ai/report.md, ai/train-log.txt).
+name: Train Rocket Strike AI
+on:
+  push:
+    branches: [main]
+    paths: ['ai/**.md', 'ai/**.py', '.github/workflows/train-ai.yml', '!ai/report.md']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: train-ai
+  cancel-in-progress: true
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install PyTorch (CPU)
+        run: pip install --index-url https://download.pytorch.org/whl/cpu torch && pip install numpy
+      - name: Train
+        run: |
+          set -o pipefail
+          python ai/train.py 2>&1 | tee ai/train-log.txt
+      - name: Commit the model
+        if: always()
+        run: |
+          git config user.name "rocket-strike-ai-trainer"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A public/ai ai/golden.json ai/report.md ai/train-log.txt
+          if git diff --cached --quiet; then echo "nothing new"; exit 0; fi
+          git commit -m "Rocket Strike AI: retrained from ai/brain.md"
+          git pull --rebase origin main
+          git push origin HEAD:main

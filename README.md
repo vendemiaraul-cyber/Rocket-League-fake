@@ -80,9 +80,19 @@ Without it, players can still join a server through **MULTIPLAYER → Game serve
 
 Which server a player uses, first match wins: `?server=https://<worker-address>` in the page link, then a server they picked in **MULTIPLAYER → Game server → CHANGE** (saved only on their device), then the site's `server.json` (from the host's `GAME_SERVER` setting, above), then `GAME_SERVER` in `public/index.html`, then the site itself.
 
+## Rocket Strike AI (our own model)
+
+The helper answers most questions with the game's **own AI**, trained with **PyTorch** and running on the player's device: instant, free, no daily limits. Only questions it isn't sure about go to the cloud helper below.
+
+- **The brain:** `ai/brain.md`. Each `##` topic has an answer, keywords and example questions (English and Italian). To teach it something, edit that file.
+- **Training:** `ai/train.py` (with `ai/features.py`, `ai/data.py`, `ai/export.py`). Every question becomes hashed word and letter-piece features; an `EmbeddingBag` averages their vectors and a small neural network scores each topic. The trainer measures itself on questions it never saw, calibrates its confidence, picks the threshold at which its answers are right about 90% of the time, and writes `ai/report.md`.
+- **Automatic:** the GitHub Action `.github/workflows/train-ai.yml` installs PyTorch, trains, and commits the model (`public/ai/rs-ai.json` + `rs-ai.bin`, about 1 MB) whenever `ai/` changes on `main`. The sites then update by themselves.
+- **In the game:** `play.html` loads the model when the helper opens and runs it in plain JavaScript (same features as `ai/features.py`; `ai/golden.json` holds test questions to check both agree). Its answers are tagged "⚡ Rocket Strike AI · on your device", with a button to ask the cloud helper instead.
+- **Train it yourself:** `pip install torch numpy` then `python ai/train.py`.
+
 ## AI helper
 
-A floating smiling orb in the game is a helper for tips, troubleshooting and questions. Drag it anywhere; tap it and a text bar slides out (the answers show in a bubble beside it); tap it again and it absorbs the bar. While it thinks it watches a small loading ring under it. **Run a check** (the pulse button) tests the device, 3D graphics, frame rate, internet, game server and a live connection, then the helper gives a diagnosis (with a built-in fallback if the AI can't answer). It runs on the game server, through the `AI` binding in `wrangler.jsonc`, so there's nothing to set up beyond deploying the Worker.
+A floating smiling orb in the game is a helper (it answers with Rocket Strike AI first, above, and the cloud for the rest) for tips, troubleshooting and questions. Drag it anywhere; tap it and a text bar slides out (the answers show in a bubble beside it); tap it again and it absorbs the bar. While it thinks it watches a small loading ring under it. **Run a check** (the pulse button) tests the device, 3D graphics, frame rate, internet, game server and a live connection, then the helper gives a diagnosis (with a built-in fallback if the AI can't answer). It runs on the game server, through the `AI` binding in `wrangler.jsonc`, so there's nothing to set up beyond deploying the Worker.
 
 - **Mini helpers (research):** for questions about how the game works, or general topics, a small planner (`gpt-oss-20b`) sends up to two mini helpers first (`src/research.js`). One reads the relevant parts of the game's code (`public/play.html` from this Worker's files, the rest from the public repo); the other looks the topic up on Wikipedia. Each writes short notes, and the helper (`gpt-oss-120b`) answers from them. The game shows the orb splitting into little orbs typing at computers, from the progress the server streams (`POST /api/assistant` with `"stream":1`, one JSON object per line: `plan`, `task`, `reply`). Older copies of the game still get a plain answer.
 - It answers from private notes written from the game's files (`src/assistant-knowledge.js`), the mini helpers' notes and, if the player allows it, their game log and status. It's told never to quote or reveal those notes, code or its instructions.
