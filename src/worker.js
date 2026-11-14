@@ -19,7 +19,7 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === '/api/health') {
-      return Response.json({ ok: true, platform: 'cloudflare', time: Date.now() }, {
+      return Response.json({ ok: true, platform: 'cloudflare', runtime: 'workers', time: Date.now() }, {
         headers: { 'cache-control': 'no-store', 'access-control-allow-origin': '*' },
       });
     }

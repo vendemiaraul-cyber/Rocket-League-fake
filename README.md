@@ -10,9 +10,11 @@ Built with three.js; multiplayer runs on Cloudflare Workers with Durable Objects
 | `public/index.html` | The whole game (one file). Plays against the bot anywhere; online play turns on when it finds the server. |
 | `src/worker.js` | The multiplayer server: serves the game, answers `/api/health`, and relays players through rooms at `/ws`. |
 | `wrangler.jsonc` | Cloudflare config: static assets, the `GameRoom` Durable Object and its migration. |
+| `netlify.toml`, `index.html` | Let Netlify, Cloudflare Pages and GitHub Pages serve the game page. |
 
 ## How multiplayer works
 
+- The game shows where it's hosted (Cloudflare Workers, Cloudflare Pages, Netlify, Vercel, GitHub Pages, local…), from the address or, on a custom domain, from the page's response headers.
 - When the page opens it asks `/api/health`. If the answer says `"platform": "cloudflare"`, the MULTIPLAYER button connects; otherwise the game stays in bot-only mode.
 - Every room is one Durable Object. `lobby` is the server list; each hosted match gets its own room named after its code (for example `rs-ab12cd`).
 - Each player sends their state (car, chat, votes) about 30 times a second over a WebSocket, and the room relays it to everyone else. The host's browser is the referee for the ball, score, clock and reports.
@@ -35,6 +37,10 @@ npx wrangler deploy
 ```
 
 Run it locally with `npx wrangler dev` and open http://localhost:8787 in two tabs to test multiplayer.
+
+### Cloudflare Pages, Netlify, GitHub Pages
+
+These serve the game page (the root `index.html` forwards to `public/`, and `netlify.toml` points Netlify at `public/`), but they can't run the multiplayer server. The game shows where it's running ("Running on Cloudflare Pages", "Running on Netlify"…) and stays bot-only there until it's pointed at a Worker (see below). For online play, deploy the repo as a **Worker** as described above.
 
 ## Using the server from another site
 
