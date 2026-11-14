@@ -272,6 +272,7 @@ body.driving #orb:not(.open){opacity:.55;transform:scale(.82)}
 @keyframes dotUp{0%,60%,100%{transform:translateY(0);opacity:.45}30%{transform:translateY(-4px);opacity:1}}
 .aimsg.test{align-self:stretch;max-width:none;background:rgba(89,224,154,.07);border:1px solid rgba(89,224,154,.25);font:600 12px ui-monospace,Menlo,monospace;white-space:pre-wrap}
 .aisrc{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.rsai-tag{font:700 10px 'Rajdhani',sans-serif;letter-spacing:.06em;color:#ffd27a;align-self:center;padding:2px 2px}
 .aisrc a{font:700 11px 'Rajdhani',sans-serif;color:#cfe6ff;text-decoration:none;background:rgba(124,198,255,.1);border:1px solid rgba(124,198,255,.3);border-radius:999px;padding:2px 8px}
 .aichips[hidden]{display:none}
 .aichips{display:flex;flex-wrap:wrap;gap:5px;padding:0 10px 8px}
@@ -2754,7 +2755,7 @@ function openSettings(){
     pr.appendChild(h('p','muted','Your name, paint, settings and chat strikes are saved only in this browser. Want a second opinion? Scan any of the links below on VirusTotal.'));
     const ul=h('ul','linklist');
     const links=[['This site',location.origin],['Game server',serverBase()||'none (playing offline against the bot)'],['3D engine (three.js)','https://cdn.jsdelivr.net/npm/three@0.165.0/'],
-      ['Fonts (Google Fonts)','https://fonts.googleapis.com'],['Source code (anyone can read it)',SOURCE_URL],['Discord server',DISCORD_URL],['AI helper (on the game server, gpt-oss-120b via Workers AI)',(serverBase()||'none')+'/api/assistant'],['Virus check (VirusTotal)','https://www.virustotal.com/gui/home/url']];
+      ['Fonts (Google Fonts)','https://fonts.googleapis.com'],['Source code (anyone can read it)',SOURCE_URL],['Discord server',DISCORD_URL],['Rocket Strike AI (our own model, trained with PyTorch, runs on your device)',new URL('ai/rs-ai.json',location.href).href],['Cloud helper for harder questions (gpt-oss-120b via Workers AI)',(serverBase()||'none')+'/api/assistant'],['Virus check (VirusTotal)','https://www.virustotal.com/gui/home/url']];
     for(const [label,url] of links){const li=h('li');li.appendChild(h('b',null,label));
       if(/^https?:\/\//.test(url)){const l=h('a',null,url);l.href=url;l.target='_blank';l.rel='noopener noreferrer';li.appendChild(l);}else li.appendChild(h('code',null,url));ul.appendChild(li);}
     pr.appendChild(ul);box.appendChild(pr);
@@ -2805,16 +2806,83 @@ function aiFormat(text){
   if(list)html+='<ul>'+list.join('')+'</ul>';
   return html||'<p>…</p>';
 }
+/* ---- Rocket Strike AI: the game's own model, trained with PyTorch from ai/brain.md (ai/train.py), running on this device ----
+   It turns the question into hashed word and letter-piece features (exactly like ai/features.py), averages their
+   learned vectors and runs a small neural network that scores every topic in the brain. If it's confident, it answers
+   straight away from the brain; otherwise the question goes to the cloud helper. No server, no limits. */
+const RSAI={state:'idle',info:null,ready:null};
+function rsaiNorm(t){return String(t==null?'':t).toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,' ').trim();}
+function rsaiTokens(text){
+  const words=rsaiNorm(text).split(' ').filter(Boolean).slice(0,40),out=[];
+  for(const w of words){out.push('w:'+w);const s='<'+w+'>';for(const n of [3,4])for(let i=0;i+n<=s.length;i++)out.push('c:'+s.slice(i,i+n));}
+  for(let i=0;i+1<words.length;i++)out.push('b:'+words[i]+'_'+words[i+1]);
+  return out;
+}
+function rsaiHash(s,nb){let h=0x811c9dc5;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return (h>>>0)%nb;}
+function rsaiFeatures(text,nb){return rsaiTokens(text).map(t=>rsaiHash(t,nb));}
+function rsaiLoad(){
+  if(RSAI.ready)return RSAI.ready;
+  RSAI.state='loading';
+  RSAI.ready=(async()=>{
+    try{
+      const base=new URL('ai/',location.href).href;
+      const [ji,bi]=await Promise.all([fetch(base+'rs-ai.json',{cache:'no-cache'}),fetch(base+'rs-ai.bin',{cache:'no-cache'})]);
+      if(!ji.ok||!bi.ok)throw new Error('model not found');
+      const info=await ji.json(),buf=await bi.arrayBuffer();
+      if(info.format!==1||buf.byteLength!==info.bytes)throw new Error('unexpected model file');
+      const o=info.offsets,f=(k,n)=>new Float32Array(buf,o[k],n);
+      RSAI.w={scale:f('embScale',info.nb),w1:f('w1',info.h*info.d),b1:f('b1',info.h),w2:f('w2',info.c*info.h),b2:f('b2',info.c),emb:new Int8Array(buf,o.emb,info.nb*info.d)};
+      RSAI.info=info;RSAI.state='ready';logEv('info',`Rocket Strike AI loaded (${info.labels.length} topics, trained ${String(info.trainedAt||'').slice(0,10)})`);
+    }catch(e){RSAI.state='none';logEv('info','Rocket Strike AI not available here: '+e.message);}
+    return RSAI.state==='ready';
+  })();
+  return RSAI.ready;
+}
+// -> {label, p} for the most likely topic, or null
+function rsaiClassify(text){
+  if(RSAI.state!=='ready')return null;
+  const I=RSAI.info,W=RSAI.w,{d,h,c}=I,idx=rsaiFeatures(text,I.nb);if(!idx.length)return null;
+  const e=new Float32Array(d);
+  for(const i of idx){const sc=W.scale[i],r=i*d;for(let k=0;k<d;k++)e[k]+=W.emb[r+k]*sc;}
+  for(let k=0;k<d;k++)e[k]/=idx.length;
+  const hv=new Float32Array(h);
+  for(let j=0;j<h;j++){let v=W.b1[j];const r=j*d;for(let k=0;k<d;k++)v+=W.w1[r+k]*e[k];hv[j]=v>0?v:0;}
+  const T=I.temperature||1,z=new Float32Array(c);let mx=-Infinity;
+  for(let q=0;q<c;q++){let v=W.b2[q];const r=q*h;for(let j=0;j<h;j++)v+=W.w2[r+j]*hv[j];z[q]=v/T;if(z[q]>mx)mx=z[q];}
+  let sum=0,best=0;for(let q=0;q<c;q++){z[q]=Math.exp(z[q]-mx);sum+=z[q];if(z[q]>z[best])best=q;}
+  return {label:I.labels[best],p:z[best]/sum};
+}
+// Answers from the brain when the model is sure (any=true: take its best guess, used when there's no cloud helper).
+async function rsaiAnswer(q,any){
+  if(RSAI.state==='none')return null;
+  await Promise.race([rsaiLoad(),new Promise(r=>setTimeout(r,2500))]);
+  const r=rsaiClassify(q);if(!r||r.label==='other')return null;
+  const th=RSAI.info.threshold||0.6;
+  if(r.p<(any?Math.min(0.35,th):th))return null;
+  const a=RSAI.info.answers[r.label];return a?{text:a,label:r.label,p:r.p}:null;
+}
 // Asks the helper. The server first decides whether to send mini helpers to research (the game's code, or
 // Wikipedia) and streams their progress, one JSON object per line; older servers just answer.
 async function askAI(question,opt){
   opt=opt||{};const q=String(question||'').replace(/[\u0000-\u0008\u000b-\u001f]/g,' ').trim().slice(0,opt.hideQuestion?1400:600);if(q.length<2||aiBusy)return false;
   if(!orbOpen)toggleOrbChat(true);
-  if(!opt.hideQuestion)aiSay('u',q,true);
+  if(!opt.hideQuestion&&!opt.again)aiSay('u',q,true);
   chipsEl.hidden=true;   // the quick questions only show until the first question
-  AI_CHAT.push({role:'user',content:q});
   const base=serverBase();
-  if(!base){AI_CHAT.pop();if(!opt.hideQuestion)aiSay('a','There\'s no game server here, so I can\'t answer. Open the game from one of the Rocket Strike sites.');return false;}
+  // our own AI first: instant, on this device, no limits
+  if(!opt.hideQuestion&&!opt.cloud){
+    aiBusy=true;aiSendEl.disabled=true;orbMood('think');const dots=aiDots();
+    const t0=performance.now(),loc=await rsaiAnswer(q,!base);
+    if(loc){
+      await new Promise(r=>setTimeout(r,Math.max(0,420-(performance.now()-t0))));   // a moment to show him thinking
+      dots.remove();AI_CHAT.push({role:'user',content:q},{role:'assistant',content:loc.text});
+      const m=aiSay('a',loc.text);rsaiTag(m,q);
+      aiBusy=false;aiSendEl.disabled=false;orbMood('happy');return true;
+    }
+    dots.remove();aiBusy=false;aiSendEl.disabled=false;
+  }
+  AI_CHAT.push({role:'user',content:q});
+  if(!base){AI_CHAT.pop();orbMood('');if(!opt.hideQuestion)aiSay('a','I\'m not sure about that one, and there\'s no game server here for harder questions. Try asking another way, or open the game from one of the Rocket Strike sites.');return false;}
   aiBusy=true;aiSendEl.disabled=true;orbMood('think');
   let wait=aiDots(),crew=null,ok=false,j=null,status=0;
   try{
@@ -2844,6 +2912,11 @@ async function askAI(question,opt){
       why==='busy'?'Lots of questions right now. Try again in a minute.':'I couldn\'t answer right now. Try again in a bit.');}
   aiBusy=false;aiSendEl.disabled=false;orbMood(ok?'happy':'');
   return ok;
+}
+function rsaiTag(msg,q){
+  const w=h('div','aisrc');const tag=h('span','rsai-tag','⚡ Rocket Strike AI · on your device');w.appendChild(tag);
+  if(serverBase()){const more=h('a',null,'☁ Ask the cloud helper');more.href='#';more.addEventListener('click',e=>{e.preventDefault();if(aiBusy)return;more.remove();askAI(q,{cloud:true,again:true});});w.appendChild(more);}
+  msg.appendChild(w);placeChat();
 }
 function aiDots(){const d=aiSay('a dots','',true);d.innerHTML='<i></i><i></i><i></i>';d.setAttribute('aria-label','Thinking');placeChat();return d;}
 function aiSources(msg,src){
@@ -2910,6 +2983,7 @@ async function toggleOrbChat(open){
     releaseKeys&&releaseKeys();
     if(!aiLogEl.children.length)aiSay('a','Hi! I\'m the Rocket Strike helper 😊 Ask me anything about the game, or tap the pulse button and I\'ll run a check. For tricky questions my mini helpers research the game\'s code or look things up.');
     orbOpen=true;orbBar.hidden=false;orbTalk.hidden=false;orbEl.classList.add('open');placeChat();orbSpin();
+    rsaiLoad();
     if(smooth){
       orbAnim=true;const b=fromOrb(orbBar),t=fromOrb(orbTalk);
       const out=(d,ms,delay)=>d?{frames:[{transform:`translate(${d.dx}px,${d.dy}px) scale(.08,.3)`,opacity:0,filter:'blur(6px)'},{transform:'none',opacity:1,filter:'blur(0)'}],o:{duration:ms,delay,easing:'cubic-bezier(.2,.9,.25,1)',fill:'backwards'}}:null;

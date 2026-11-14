@@ -46,6 +46,9 @@ SETTINGS (menu > SETTINGS)
   (rooms named rd-...), with Customs: match length 2/3/5 min, players 2/4/6, bot fills a gap on/off, normal/unlimited boost. Your tab must stay
   open and in front, or the match stops. The server list shows "the host's device". USE THE ONLINE SERVER switches back.
 - Proof: no viruses/malware in the code, no downloads, no ads/trackers, no passwords asked; lists every link the game uses.
+- Most questions are answered instantly by Rocket Strike AI, the game's own small model (trained with PyTorch from a brain file,
+  running on the player's device, tagged '⚡ Rocket Strike AI'); you, the cloud helper, get the questions it isn't sure about or when
+  the player taps 'Ask the cloud helper'.
 - The helper (you) is the floating orb with a white face (a swirling, shimmering colour blob): drag it anywhere. Tap it and a text bar slides
   out of it, with the answers in a bubble next to the bar; tap the orb again, the x or Escape and it sucks the bar back in. While thinking
   it watches a small loading ring under it. For questions about how the game works, or general topics, it splits into up to two mini
