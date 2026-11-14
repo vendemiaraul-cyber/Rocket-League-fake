@@ -20,7 +20,7 @@ export class Match {
   constructor(code) {
     this.M = {
       ph: 'lobby', rem: 0, lr: 30, clk: 120, sc: [0, 0], ro: [], kick: 0, gn: 0, gl: null, vr: 0, vs: 0, vw: 0, tk: 0,
-      b: [0, BALL_R, 0, 0, 0, 0], bot: null, ack: [], hn: '', code, sn: [], sid: 0, ow: '', echo: [],
+      b: [0, BALL_R, 0, 0, 0, 0], bot: null, ack: [], hn: '', code, sn: [], sid: 0, ow: '', echo: [], apOn: false, away: [],
     };
     this.ball = makeBall();
     this.bot = makeCar(1);
@@ -46,6 +46,7 @@ export class Match {
       if (Array.isArray(d.sn)) M.sn = d.sn.filter(e => Array.isArray(e) && e.length === 3).slice(-8);
       if (typeof d.sid === 'number') M.sid = d.sid;
       if (Array.isArray(d.kick) && d.kick.length) M.ro = M.ro.filter(r => !d.kick.includes(r[0]));
+      M.apOn = d.apOn === 1 || d.apOn === true;   // autopilot for away players: the host's choice, off by default
       // START MATCH from the owner
       if (typeof d.st === 'number' && d.st > this.startSeen) {
         this.startSeen = d.st;
@@ -120,14 +121,17 @@ export class Match {
       else { const bi = bot.inp; bi.throttle = M.ph === 'goal' ? 0.5 : 0; bi.steer = bi.pitch = bi.roll = 0; bi.boost = false; bi.jumpPressed = false; }
       bot.boost = Math.min(100, bot.boost + 8 * dt);   // stands in for boost pads
     }
-    // Players who are away (tab hidden, no update for 1.5 s, or left the room) get an autopilot car,
-    // driven like the bot, so their car never stands frozen in the way. It hands back when they return.
+    // Players who are away (tab hidden, no update for 1.5 s, or left the room) never stand frozen in
+    // the way: with autopilot on (the host's choice) the server drives their car like the bot; with it
+    // off (the default) their car is taken off the field until they come back.
     const byPeer = new Map(players.map(p => [p.peer, p]));
     for (const p of players) if (p.d.nm) this.names.set(p.peer, cleanName(p.d.nm));
+    const awaySet = new Set();
     for (const r of M.ro) {
       if (r[0] === 'bot') continue;
       const p = byPeer.get(r[0]);
       const away = !p || p.d.hid === 1 || now - p.at > 1500;
+      if (away && !M.apOn) { awaySet.add(r[0]); this.ap.delete(r[0]); continue; }
       if (away && !this.ap.has(r[0])) {
         const car = makeCar(r[1]); car.nick = this.names.get(r[0]) || 'PLAYER'; car.active = true;
         const c = p && Array.isArray(p.d.c) && p.d.c.length >= 11 ? p.d.c.map(num) : null;
@@ -151,13 +155,14 @@ export class Match {
     const cars = [];
     for (const p of players) {
       const r = M.ro.find(x => x[0] === p.peer); const c = p.d.c;
-      if (!r || this.ap.has(p.peer) || !Array.isArray(c) || c.length < 11) continue;
+      if (!r || this.ap.has(p.peer) || awaySet.has(p.peer) || !Array.isArray(c) || c.length < 11) continue;
       const s = c.map(num);
       const e = clamp((now - p.at) / 1000 + clamp(num(p.d.rt), 10, 600) / 2000, 0, 0.3);
       cars.push({ peer: p.peer, team: r[1], nick: cleanName(p.d.nm) || 'PLAYER',
         pos: new V3(s[0] + s[7] * e, Math.max(CAR_H, s[1] + s[8] * e), s[2] + s[9] * e),
         q: new Quat(s[3], s[4], s[5], s[6]).normalize(), vel: new V3(s[7], s[8], s[9]), grounded: !!(s[10] & 2) });
     }
+    M.away = [...awaySet];
     const n = Math.max(1, Math.ceil(sdt * 120)), h = sdt / n;
     const col = this.col;
     for (let i = 0; i < n; i++) {

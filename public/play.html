@@ -378,7 +378,7 @@ body.touch #playersBtn{transform:translateX(calc(-50% - 30px))}
   <div id="lstatus">Connecting…</div>
   <div class="btnrow" id="voteRow" hidden><button class="btn sm vote" id="voteStart">START NOW</button><button class="btn sm vote" id="voteWait">WAIT</button></div>
   <div class="muted" id="vnote" hidden>Players who don't vote will watch the match from the spectator box.</div>
-  <div class="btnrow"><button class="btn sm primary" id="startHostBtn" hidden>START MATCH</button><button class="btn sm ghost" id="inviteBtn" type="button">COPY INVITE LINK</button><button class="btn sm ghost" id="leaveBtn">LEAVE</button><button class="btn sm ghost logbtn" type="button">LOG <span class="logcount" hidden></span></button></div>
+  <div class="btnrow"><button class="btn sm primary" id="startHostBtn" hidden>START MATCH</button><button class="btn sm ghost" id="apBtn" type="button" hidden>AUTOPILOT: OFF</button><button class="btn sm ghost" id="inviteBtn" type="button">COPY INVITE LINK</button><button class="btn sm ghost" id="leaveBtn">LEAVE</button><button class="btn sm ghost logbtn" type="button">LOG <span class="logcount" hidden></span></button></div>
 </div>
 <div id="chat">
   <div id="chatLog" aria-live="polite"></div>
@@ -1876,7 +1876,7 @@ function enterOnline(gr,code,host){
   LOCAL.mode='online';LOCAL.vote=null;LOCAL.lastPhase=null;LOCAL.lastKick=-1;LOCAL.lastGoalN=0;LOCAL.specView=-1;
   document.getElementById('chatLog').textContent='';
   M=host&&!NET.serverRun?newM(true):null;if(M){M.hn=nick();M.code=code;}
-  NET.startN=0;NET.snList=[];NET.snId=0;NET.kickList=[];
+  NET.startN=0;NET.snList=[];NET.snId=0;NET.kickList=[];NET.apOn=false;
   if(host)LOCAL.lastGoalN=0;
   UI.menu.classList.remove('on');document.getElementById('mp').classList.remove('on');
   gr.onPeers(ch=>{
@@ -1919,7 +1919,7 @@ function netSend(){
   if(LOCAL.mode!=='online'||!NET.gr)return;
   me.nick=nick();
   const pr={ts:Math.round(performance.now()),hid:document.hidden?1:0,rt:Math.round(NET.gameRtt||0),nm:nick(),col:colourIdx,c:me.active?encodeCar(me):null,v:LOCAL.vote,ch:NET.chatOut,rp:NET.report||null};
-  if(NET.isHost&&NET.serverRun){pr.st=NET.startN||0;pr.sn=NET.snList||[];pr.sid=NET.snId||0;if(NET.kickList&&NET.kickList.length)pr.kick=NET.kickList;}
+  if(NET.isHost&&NET.serverRun){pr.apOn=NET.apOn?1:0;pr.st=NET.startN||0;pr.sn=NET.snList||[];pr.sid=NET.snId||0;if(NET.kickList&&NET.kickList.length)pr.kick=NET.kickList;}
   if(isAuth()&&M){M.tk=(M.tk+1)%1e6;M.b=encodeBall();
     {const now=performance.now(),ec=[];for(const p of NET.gr.peers())if(!p.sameTab&&p.presence&&typeof p.presence.ts==='number'&&p.recvAt)ec.push([p.peer,p.presence.ts,Math.round(now-p.recvAt)]);M.echo=ec;}M.bot=botCar.active?encodeCar(botCar):null;M.hn=nick();
     M.rem=r2(M.rem);M.lr=r2(M.lr);M.clk=r2(M.clk);pr.g=M;pr.host=1;}
@@ -1962,11 +1962,12 @@ function syncRemotes(dt){
   }
   if(LOCAL.mode==='online'&&NET.gr&&livePhase()){
     // cars the server is driving for players who are away (their tab is hidden, or they left)
+    const AWAY=new Set(NET.serverRun&&M&&Array.isArray(M.away)?M.away:[]);
     const AP=new Map();if(NET.serverRun&&M&&Array.isArray(M.ap))for(const a of M.ap)if(Array.isArray(a)&&a.length>=13&&typeof a[0]==='string')AP.set(a[0],a);
     const live=new Set();
     for(const p of NET.gr.peers()){
       if(p.sameTab)continue;const pr=p.presence||{};const r=rosterEntry(p.peer);const ap=AP.get(p.peer);
-      if(!r||(!ap&&!Array.isArray(pr.c)))continue;
+      if(!r||AWAY.has(p.peer)||(!ap&&!Array.isArray(pr.c)))continue;   // away with autopilot off: off the field
       live.add(p.peer);
       const ci=Math.max(0,(pr.col|0)%COLOURS.length);
       let car=remotes.get(p.peer);
@@ -2522,6 +2523,8 @@ function tryInviteJoin(){
   if(found){joinTried=true;joinGame(JOIN_CODE);}
   else if(GAME.realT-NET.mpOpenedAt>4){joinTried=true;toast('That match isn\'t open any more. Pick another server or host one.');}
 }
+document.getElementById('apBtn').addEventListener('click',()=>{if(!NET.isHost)return;NET.apOn=!NET.apOn;
+  sysChat(NET.apOn?'Autopilot is on: the server drives the cars of players who step away.':'Autopilot is off: cars of players who step away leave the field until they\'re back.');});
 function vote(c){if(!M||M.ph!=='vote')return;LOCAL.vote={r:M.vr,c};NET.lastPeerSig='';}
 UI.vS.addEventListener('click',()=>vote('s'));UI.vW.addEventListener('click',()=>vote('w'));
 document.getElementById('specPrev').addEventListener('click',()=>cycleSpec(-1));
@@ -2547,6 +2550,8 @@ function renderPlayers(ps){
 function updateLobbyUI(){
   if(LOCAL.mode!=='online')return;
   UI.startHost.hidden=!NET.isHost||!M||(M.ph!=='lobby'&&M.ph!=='vote');
+  {const ab=document.getElementById('apBtn');ab.hidden=!NET.isHost||!NET.serverRun||!M;const t='AUTOPILOT: '+(M&&M.apOn?'ON':'OFF');if(ab.textContent!==t)ab.textContent=t;
+    ab.title='When a player\'s tab is in the background: ON lets the server drive their car, OFF takes it off the field until they\'re back';}
   const voting=!!M&&M.ph==='vote';UI.voteRow.hidden=!voting;UI.vnote.hidden=!voting;
   if(!M){UI.lstatus.textContent='Connecting to the host…';return;}
   const n=roomPeers().length;
