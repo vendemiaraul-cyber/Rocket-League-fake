@@ -7,7 +7,7 @@ Built with three.js; multiplayer runs on Cloudflare Workers with Durable Objects
 
 | Path | What it is |
 | --- | --- |
-| `public/index.html` | The main page: what the game is, how to play with friends online and through invite links, and the PLAY button. Shows whether the game server is online and how many matches are open. |
+| `public/index.html` | The main page: what the game is, how to play with friends online and through invite links, and the PLAY button. Shows whether the game server is online and how many matches are open, and links to the live Cloudflare and Netlify sites (change those in your own copy). |
 | `public/play.html` | The whole game (one file). Plays against the bot anywhere; online play turns on when it finds the server. |
 | `src/worker.js` | The multiplayer server: serves the game, answers `/api/health`, relays players through rooms at `/ws`, and runs each match. |
 | `src/match.js`, `src/physics.js` | The match the server runs (lobby, vote, kickoff, ball, bot, goals, clock) and its physics, copied from the game. |
