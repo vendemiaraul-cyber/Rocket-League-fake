@@ -196,6 +196,8 @@ body.spect .ingame .boost,body.spect .camtag{display:none}
 .linklist li{display:flex;flex-direction:column;gap:1px}
 .linklist b{font-size:12px;color:#fff}
 .linklist a,.linklist code{font-size:11.5px;color:#9fd0ff;word-break:break-all;font-family:ui-monospace,Menlo,monospace}
+#dcMsg{font:600 14px 'Rajdhani',system-ui,sans-serif;color:#fff;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.3);border-radius:8px;padding:.5em .6em;outline:none;resize:vertical;user-select:text;-webkit-user-select:text}
+#dcMsg:focus{border-color:#7cc6ff}
 #fpsMeter{position:fixed;left:8px;top:8px;z-index:30;font:700 11px ui-monospace,Menlo,monospace;color:#9ff0c4;background:rgba(0,0,0,.45);padding:3px 7px;border-radius:6px;pointer-events:none}
 #fpsMeter[hidden]{display:none}
 #setBtn{align-self:center}
@@ -2565,6 +2567,32 @@ function tryInviteJoin(){
 document.getElementById('apBtn').addEventListener('click',()=>{if(!NET.isHost)return;NET.apOn=!NET.apOn;
   sysChat(NET.apOn?'Autopilot is on: the server drives the cars of players who step away.':'Autopilot is off: cars of players who step away leave the field until they\'re back.');});
 /* ---- settings ---- */
+// an anonymous player ID, kept in this browser, sent with messages to Discord so admins can tell senders apart
+const PLAYER_ID=(()=>{let v='';try{v=localStorage.getItem('rs-pid')||'';}catch(e){}
+  if(!/^RS-[A-Z0-9]{6}$/.test(v)){const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';v='RS-';const r=crypto.getRandomValues(new Uint8Array(6));for(const x of r)v+=A[x%A.length];try{localStorage.setItem('rs-pid',v);}catch(e){}}
+  return v;})();
+let dcLastSent=0;
+async function sendToDiscord(raw){
+  const text=cleanText(raw,300);
+  if(text.length<2)return {ok:false,msg:'Write a message first.'};
+  if(suspended())return {ok:false,msg:'You can\'t send messages while suspended.'};
+  if(MOD.chatRestricted)return {ok:false,msg:'Your chat is restricted. Agree to the rules again to send messages.'};
+  const sc=scanText(text);
+  if(sc.sev>=2||sc.placeInsult.length)return {ok:false,msg:'Not sent: it breaks the chat rules. Keep it cool.'};
+  const wait=30-Math.floor((performance.now()-dcLastSent)/1000);if(dcLastSent&&wait>0)return {ok:false,msg:`Wait ${wait} s before sending another message.`};
+  const base=serverBase();if(!base)return {ok:false,msg:'There\'s no game server here, so messages can\'t be sent.'};
+  try{
+    const ctl=new AbortController();const to=setTimeout(()=>ctl.abort(),8000);
+    const r=await fetch(base+'/api/discord',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({text:sc.sev===1?sc.masked:text,name:nick(),id:PLAYER_ID}),signal:ctl.signal});
+    clearTimeout(to);let j=null;try{j=await r.json();}catch(e){}
+    if(r.ok&&j&&j.ok){dcLastSent=performance.now();logEv('info','Message sent to Discord');return {ok:true,msg:'Sent! Check the Discord server.'};}
+    const why=j&&j.reason;
+    if(why==='not_set_up'||r.status===404)return {ok:false,msg:'Messages to Discord aren\'t set up on this server yet.'};
+    if(why==='slow_down')return {ok:false,msg:`Wait ${j.wait||30} s before sending another message.`};
+    if(why==='busy')return {ok:false,msg:'Lots of messages right now. Try again in a minute.'};
+    return {ok:false,msg:'Couldn\'t reach Discord. Try again later.'};
+  }catch(e){return {ok:false,msg:'Couldn\'t reach the game server. Try again later.'};}
+}
 NET.localHost=(()=>{try{return localStorage.getItem('rs-localhost')==='1';}catch(e){return false;}})();
 const CUSTOMS={len:120,max:6,bot:1,ub:0};
 try{Object.assign(CUSTOMS,JSON.parse(localStorage.getItem('rs-customs')||'{}'));}catch(e){}
@@ -2585,7 +2613,17 @@ function openSettings(){
     // community
     const com=section('COMMUNITY');
     const a=h('a','discordbtn');a.href=DISCORD_URL;a.target='_blank';a.rel='noopener noreferrer';a.innerHTML=DISCORD_SVG;a.appendChild(document.createTextNode('Join our Discord server!'));
-    com.appendChild(a);box.appendChild(com);
+    com.appendChild(a);
+    // send a message straight to the Discord server
+    com.appendChild(h('b',null,'Send a message to Discord directly here'));
+    const ta=h('textarea');ta.id='dcMsg';ta.maxLength=300;ta.rows=3;ta.placeholder='Say hi, report a bug, suggest something…';
+    ta.addEventListener('keydown',e=>e.stopPropagation());
+    const note=h('p','muted',`Sent with your name (${nick()}) and player ID ${PLAYER_ID}. Same rules as the chat: keep it cool.`);
+    const st=h('p','muted','');st.setAttribute('aria-live','polite');
+    const send=h('button','btn sm primary','SEND TO DISCORD');send.type='button';
+    send.addEventListener('click',async()=>{send.disabled=true;st.textContent='Sending…';const r=await sendToDiscord(ta.value);st.textContent=r.msg;if(r.ok)ta.value='';send.disabled=false;});
+    com.append(ta,note,send,st);
+    box.appendChild(com);
     // graphics
     const g=section('GRAPHICS');
     g.appendChild(row('Quality',seg([['low','LOW'],['medium','MEDIUM'],['high','HIGH']],GFX.q,v=>{GFX.q=v;saveGfx();applyGfx();})));
