@@ -1508,7 +1508,11 @@ function updateBallDisplay(dt){
 const tripTime=otherRt=>((NET.gr&&NET.gr.rtt||60)+(otherRt>0?otherRt:60))/2000;
 // run the ball forward by t seconds with the real physics (bounces included)
 function advanceBall(t){t=clamp(t,0,0.3);if(t<=0)return;const n=Math.ceil(t*120),h=t/n;for(let i=0;i<n;i++)stepBall(h);}
-function reportHit(aerial){NET.hitN++;NET.hit={n:NET.hitN,b:encodeBall(),a:aerial?1:0,t:Math.round(performance.now())};NET.graceUntil=performance.now()+1200;}
+function reportHit(aerial){NET.hitN++;NET.hit={n:NET.hitN,b:encodeBall(),a:aerial?1:0,t:Math.round(performance.now())};
+  // After a touch, ignore the host's older updates (they don't have our touch yet) until the host
+  // confirms it. The wait starts with the first touch of a run and is never extended, so pushing the
+  // ball for a long time (say, stuck in a goal) can't make us ignore the host for good.
+  const now=performance.now();if(now>=NET.graceUntil+300)NET.graceUntil=now+clamp((NET.gr&&NET.gr.rtt||150)*2+400,500,1200);}
 const physCars=()=>{const a=[];if(me.active)a.push(me);if(isAuth()&&botCar.active)a.push(botCar);return a;};
 const BAD_CH=new RegExp('[\\u0000-\\u001f\\u007f-\\u009f\\u00ad\\u061c\\u180e\\u200b-\\u200f\\u2028-\\u202e\\u2060-\\u206f\\ufeff\\ue000-\\uf8ff]','g');
 const cleanText=(s,n)=>String(s==null?'':s).replace(BAD_CH,'').slice(0,n).trim();
@@ -2508,11 +2512,30 @@ function onPhase(ph,prev){
   if(ph==='countdown'||ph==='play')updateScoreUI();
   setBody();NET.lastPeerSig='';
 }
+// Joining players mirror the host's match: whatever the host is doing, we do too, even if we missed
+// a moment of it (a slow frame, a dropped update, a window in the background).
+function followHost(){
+  if(!M||LOCAL.mode!=='online')return;
+  const ph=M.ph;
+  // the host has moved on from a goal: clear the goal on our side too
+  if((ph==='countdown'||ph==='play')&&(BALL.scored||EX.active||UI.goal.className)){
+    hideExplosion();ball.visible=true;ballGlow.visible=true;BALL.scored=false;UI.goal.className='';UI.banner.className='';GAME.ts=1;
+    if(Array.isArray(M.b)){BALL.pos.set(+M.b[0],+M.b[1],+M.b[2]);BALL.vel.set(+M.b[3]||0,+M.b[4]||0,+M.b[5]||0);BALL.off.set(0,0,0);BALL.disp.copy(BALL.pos);}
+    logEv('warn','Caught up with the host after a goal');
+  }
+  if(ph!=='goal'&&GAME.ts!==1)GAME.ts=1;
+  // during the countdown everyone waits at their kickoff spot
+  if(ph==='countdown'&&me.active){const r=rosterEntry(myPeer());if(r){const sp=spawnFor(r);
+    if(Math.hypot(me.pos.x-sp.pos.x,me.pos.z-sp.pos.z)>3){placeCar(me,sp.pos,sp.yaw);snapCam=true;}}}
+  // the score is the host's
+  if(Array.isArray(M.sc)&&(UI.sb.textContent!==String(M.sc[0])||UI.so.textContent!==String(M.sc[1]))&&ph!=='goal')updateScoreUI();
+}
 function updateScoreUI(){if(!M)return;UI.sb.textContent=M.sc[0];UI.so.textContent=M.sc[1];drawJumboScore();}
 let lastSc='';function drawJumboScore(){if(!M)return;GAME.score=M.sc;drawJumbo('score');}
 function syncFromM(){
   if(!M)return;
   if(M.kick!==LOCAL.lastKick&&livePhase()){LOCAL.lastKick=M.kick;onKickoff();}
+  if(!isAuth())followHost();
   if(M.gn!==LOCAL.lastGoalN){if(M.gn>LOCAL.lastGoalN&&M.gl&&M.ph==='goal')onGoal(M.gl);LOCAL.lastGoalN=M.gn;}
   if(M.ph!==LOCAL.lastPhase){const prev=LOCAL.lastPhase;LOCAL.lastPhase=M.ph;onPhase(M.ph,prev);}
   if(M.ph==='countdown'){const step=Math.floor((2.4-M.rem)/0.8);if(step!==LOCAL.cdStep&&step>=0&&step<3){LOCAL.cdStep=step;showCount(['1','2','3'][step],false);}}
