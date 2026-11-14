@@ -5,21 +5,24 @@
 //                           match gets its own room named by its code (e.g. "rs-ab12cd").
 // anything else          -> the static game in ./public.
 //
-// Each room is one Durable Object. It does not run the game: the host's browser is the referee.
-// The room keeps each player's latest "presence" (car, chat, votes, the host's match state)
-// and relays every change to the other players in the room.
+// Each room is one Durable Object. It keeps each player's latest "presence" (car, chat, votes) and
+// relays every change to the other players in the room. Match rooms (rs-...) also run the match
+// itself (src/match.js): ball, bot, goals, clock, kickoff and voting, and send the match state about
+// 30 times a second as a player called "srv". So no browser has to stay in front for the match to run.
+import { Match } from './match.js';
 
 const ROOM_RE = /^[a-z0-9][a-z0-9_.-]{0,47}$/;
 const MAX_MSG = 16 * 1024;          // bytes per message
 const MAX_PEERS = { lobby: 400, game: 12 };
 const MAX_RATE = 90;                // messages per second per connection
+const TICK_MS = 16, SEND_MS = 33;   // match: physics about 60 times a second, state about 30 times a second
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
     if (url.pathname === '/api/health') {
-      return Response.json({ ok: true, platform: 'cloudflare', runtime: 'workers', time: Date.now() }, {
+      return Response.json({ ok: true, platform: 'cloudflare', runtime: 'workers', match: 'server', time: Date.now() }, {
         headers: { 'cache-control': 'no-store', 'access-control-allow-origin': '*' },
       });
     }
@@ -45,7 +48,39 @@ export class GameRoom {
     // peer id -> latest presence string (already JSON). Kept in memory only: players resend
     // their presence many times a second, so nothing is lost if the object restarts.
     this.presence = new Map();
+    this.parsed = new Map();   // peer -> { d: presence object, at: ms it arrived }
     this.rate = new Map();
+    this.match = null; this.loop = 0; this.room = ''; this.lastStep = 0; this.lastSend = 0;
+  }
+
+  // ---- the match (rs-... rooms only) ----
+  ensureLoop() {
+    if (this.loop || !/^rs-/.test(this.room)) return;
+    if (!this.match) this.match = new Match(this.room);
+    this.lastStep = Date.now();
+    this.loop = setInterval(() => this.step(), TICK_MS);
+  }
+  players() {
+    const out = [];
+    for (const ws of this.ctx.getWebSockets()) {
+      const a = this.attOf(ws); if (!a) continue;
+      const p = this.parsed.get(a.peer);
+      out.push({ peer: a.peer, joined: a.joined || 0, d: p ? p.d : {}, at: p ? p.at : Date.now() });
+    }
+    return out;
+  }
+  step() {
+    const now = Date.now();
+    const ps = this.players();
+    if (!ps.length) { clearInterval(this.loop); this.loop = 0; this.match = null; return; }
+    const owner = ps.reduce((a, b) => (b.joined < a.joined ? b : a)).peer;
+    const dt = Math.min(0.05, Math.max(0, (now - this.lastStep) / 1000)); this.lastStep = now;
+    try { this.match.tick(dt, ps, owner, now); } catch (e) { console.error('match tick', e && e.stack); }
+    if (now - this.lastSend >= SEND_MS) { this.lastSend = now; this.broadcast(this.srvMessage(ps, now)); }
+  }
+  srvMessage(ps, now) {
+    const M = this.match.snapshot(ps || this.players(), now);
+    return JSON.stringify({ t: 'p', peer: 'srv', d: { host: 1, srv: 1, ts: now, g: M } });
   }
 
   async fetch(request) {
@@ -59,8 +94,9 @@ export class GameRoom {
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
     const peer = crypto.randomUUID().replace(/-/g, '').slice(0, 12);
+    this.room = room;
     this.ctx.acceptWebSocket(server);
-    server.serializeAttachment({ peer });
+    server.serializeAttachment({ peer, room, joined: Date.now() });
 
     // Tell the newcomer who they are and who is already here, then tell everyone else.
     const peers = [];
@@ -71,6 +107,8 @@ export class GameRoom {
     }
     server.send(`{"t":"hello","peer":"${peer}","peers":[${peers.map(p => `{"peer":"${p.peer}","d":${p.d}}`).join(',')}]}`);
     this.broadcast(`{"t":"join","peer":"${peer}"}`, server);
+    this.ensureLoop();
+    if (this.match) server.send(this.srvMessage(null, Date.now()));
 
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -88,6 +126,9 @@ export class GameRoom {
     if (msg.t === 'p' && msg.d && typeof msg.d === 'object' && !Array.isArray(msg.d)) {
       const d = JSON.stringify(msg.d);
       this.presence.set(peer, d);
+      this.parsed.set(peer, { d: msg.d, at: Date.now() });
+      if (!this.room) { const a = this.attOf(ws); if (a && a.room) this.room = a.room; }
+      if (!this.loop) this.ensureLoop();
       this.broadcast(`{"t":"p","peer":"${peer}","d":${d}}`, ws);
     } else if (msg.t === 'ping') {
       ws.send(`{"t":"pong","c":${Number(msg.c) || 0},"s":${Date.now()}}`);
@@ -107,12 +148,17 @@ export class GameRoom {
     const peer = this.peerOf(ws);
     if (!peer) return;
     this.presence.delete(peer);
+    this.parsed.delete(peer);
     this.rate.delete(peer);
     this.broadcast(`{"t":"leave","peer":"${peer}"}`, ws);
   }
 
+  attOf(ws) {
+    try { return ws.deserializeAttachment() || null; } catch { return null; }
+  }
+
   peerOf(ws) {
-    try { const a = ws.deserializeAttachment(); return a && a.peer; } catch { return null; }
+    const a = this.attOf(ws); return a && a.peer;
   }
 
   allow(peer) {

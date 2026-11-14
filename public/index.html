@@ -1407,7 +1407,9 @@ const NET={netState:'pending',mpOpenedAt:0,room:null,user:null,gr:null,code:'',i
 const r2=v=>Math.round(v*100)/100,r3=v=>Math.round(v*1000)/1000;
 function newM(online){return {ph:online?'lobby':'countdown',rem:0,lr:30,clk:120,sc:[0,0],ro:[],kick:0,gn:0,gl:null,vr:0,vs:0,vw:0,tk:0,
   b:[0,BALL_R,0,0,0,0],bot:null,ack:[],hn:'',code:'',sn:[],sid:0};}
-const isAuth=()=>LOCAL.mode==='single'||(LOCAL.mode==='online'&&NET.isHost);
+// Who runs the match: the computer in single player; online, the server when it can (NET.serverRun),
+// otherwise the host's browser.
+const isAuth=()=>LOCAL.mode==='single'||(LOCAL.mode==='online'&&NET.isHost&&!NET.serverRun);
 const myPeer=()=>LOCAL.mode==='single'?'me':NET.myPeer;
 function rosterEntry(peer){if(!M||!M.ro||peer==null)return null;for(const r of M.ro)if(r[0]===peer)return r;return null;}
 function spawnFor(r){const xs=r[3]===1?[0]:r[3]===2?[-9,9]:[-14,0,14];return {pos:V(xs[r[2]]||0,CAR_H,r[1]===0?SPAWN_Z:-SPAWN_Z),yaw:r[1]===0?Math.PI:0};}
@@ -1688,7 +1690,7 @@ async function detectServer(){
     const r=await fetch(base+'/api/health',{cache:'no-store',signal:ctl.signal});clearTimeout(to);
     let j=null;try{j=await r.json();}catch(e){}
     if(j&&j.reason==='not_linked'){HOSTING.notLinked=true;return false;}
-    if(!r.ok||!(j&&j.ok&&j.platform==='cloudflare'))return false;HOSTING.notLinked=false;
+    if(!r.ok||!(j&&j.ok&&j.platform==='cloudflare'))return false;HOSTING.notLinked=false;NET.serverRun=j.match==='server';
     HOSTING.server={name:'Cloudflare '+(j.runtime==='workers'||!j.runtime?'Workers':j.runtime),sameSite:base===location.origin,via:j.via||''};return true;
   }catch(e){return false;}
 }
@@ -1704,13 +1706,14 @@ class RoomConn{
       ws.onmessage=ev=>{let m;try{m=JSON.parse(ev.data);}catch(e){return;}if(!m||typeof m!=='object')return;
         if(m.t==='hello'&&typeof m.peer==='string'){
           this.me=m.peer;this.map.clear();const now=Date.now();
-          for(const p of Array.isArray(m.peers)?m.peers:[])if(p&&typeof p.peer==='string')this.map.set(p.peer,{presence:(p.d&&typeof p.d==='object')?p.d:{},updatedAt:now,fresh:false});
+          for(const p of Array.isArray(m.peers)?m.peers:[])if(p&&typeof p.peer==='string'&&p.peer!=='srv')this.map.set(p.peer,{presence:(p.d&&typeof p.d==='object')?p.d:{},updatedAt:now,fresh:false});
           this.cache=null;
           if(!this.ready){this.ready=true;clearTimeout(to);this.pingTimer=setInterval(()=>this.ping(),2000);resolve(this);}
           this.flush();this.emit([],[]);
         }else if(m.t==='join'&&typeof m.peer==='string'){this.map.set(m.peer,{presence:{},updatedAt:Date.now(),fresh:true});this.cache=null;}
         else if(m.t==='leave'&&typeof m.peer==='string'){const old=this.map.get(m.peer);this.map.delete(m.peer);this.cache=null;
           this.emit([],[{peer:m.peer,isMe:false,sameTab:false,kind:'viewer',presence:old?old.presence:{}}]);}
+        else if(m.t==='p'&&m.peer==='srv'){this.srv={presence:(m.d&&typeof m.d==='object')?m.d:{},updatedAt:Date.now(),recvAt:performance.now()};}
         else if(m.t==='p'&&typeof m.peer==='string'){let e=this.map.get(m.peer);if(!e){e={fresh:false};this.map.set(m.peer,e);}
           e.presence=(m.d&&typeof m.d==='object')?m.d:{};e.updatedAt=Date.now();e.recvAt=performance.now();this.cache=null;
           if(e.fresh){e.fresh=false;this.emit([m.peer],[]);}else this.emit([],[],m.peer);}
@@ -1871,7 +1874,8 @@ function enterOnline(gr,code,host){
   NET.chatOut=[];NET.chatSeen.clear();NET.lastPeerSig='';NET.lastAdvert=-9;
   LOCAL.mode='online';LOCAL.vote=null;LOCAL.lastPhase=null;LOCAL.lastKick=-1;LOCAL.lastGoalN=0;LOCAL.specView=-1;
   document.getElementById('chatLog').textContent='';
-  M=host?newM(true):null;if(M){M.hn=nick();M.code=code;}
+  M=host&&!NET.serverRun?newM(true):null;if(M){M.hn=nick();M.code=code;}
+  NET.startN=0;NET.snList=[];NET.snId=0;NET.kickList=[];
   if(host)LOCAL.lastGoalN=0;
   UI.menu.classList.remove('on');document.getElementById('mp').classList.remove('on');
   gr.onPeers(ch=>{
@@ -1896,11 +1900,13 @@ function netTick(dt){
   if(LOCAL.mode!=='online'||!NET.gr)return;
   const ps=NET.gr.peers();
   const mine=ps.find(p=>p.sameTab);if(mine)NET.myPeer=mine.peer;
-  if(!NET.isHost){
-    const hp=ps.find(p=>!p.sameTab&&p.presence&&p.presence.host&&p.presence.g&&typeof p.presence.g==='object');
+  if(!isAuth()){
+    const sv=NET.gr.srv;
+    const hp=NET.serverRun?(sv&&sv.presence.g&&typeof sv.presence.g==='object'?{peer:'srv',presence:sv.presence,updatedAt:sv.updatedAt,recvAt:sv.recvAt}:null)
+      :ps.find(p=>!p.sameTab&&p.presence&&p.presence.host&&p.presence.g&&typeof p.presence.g==='object');
     if(hp){M=hp.presence.g;NET.hostAge=clamp((Date.now()-hp.updatedAt)/1000,0,0.5);NET.hostSeenAt=performance.now();
       NET.hostPeer=hp.peer;NET.hostTs=hp.presence.ts;NET.hostRecv=hp.recvAt;NET.hostRt=+hp.presence.rt||0;NET.hostP=hp;}
-    else if(performance.now()-NET.hostSeenAt>(M?4000:9000)){leaveOnline('The host left, so the server closed.');return;}
+    else if(performance.now()-NET.hostSeenAt>(M?4000:9000)){leaveOnline(NET.serverRun?'Lost the connection to the game server.':'The host left, so the server closed.');return;}
   }
   pollChat(ps);trackTick(ps);hostReportsTick(ps);sanctionsTick();
   // player list signature for the lobby panel
@@ -1911,7 +1917,8 @@ function netSend(){
   if(LOCAL.mode!=='online'||!NET.gr)return;
   me.nick=nick();
   const pr={ts:Math.round(performance.now()),rt:Math.round(NET.gameRtt||0),nm:nick(),col:colourIdx,c:me.active?encodeCar(me):null,v:LOCAL.vote,ch:NET.chatOut,rp:NET.report||null};
-  if(NET.isHost&&M){M.tk=(M.tk+1)%1e6;M.b=encodeBall();
+  if(NET.isHost&&NET.serverRun){pr.st=NET.startN||0;pr.sn=NET.snList||[];pr.sid=NET.snId||0;if(NET.kickList&&NET.kickList.length)pr.kick=NET.kickList;}
+  if(isAuth()&&M){M.tk=(M.tk+1)%1e6;M.b=encodeBall();
     {const now=performance.now(),ec=[];for(const p of NET.gr.peers())if(!p.sameTab&&p.presence&&typeof p.presence.ts==='number'&&p.recvAt)ec.push([p.peer,p.presence.ts,Math.round(now-p.recvAt)]);M.echo=ec;}M.bot=botCar.active?encodeCar(botCar):null;M.hn=nick();
     M.rem=r2(M.rem);M.lr=r2(M.lr);M.clk=r2(M.clk);pr.g=M;pr.host=1;}
   NET.gr.presence(pr).catch(e=>logEv('warn','Presence update failed: '+((e&&(e.code||e.message))||e)));
@@ -2343,12 +2350,14 @@ function showReportResult(name,reasons,an,note){
 function hostHandleReport(peer,reasons){
   if(!M||!NET.isHost||peer===NET.myPeer)return;
   const an=analyzeTarget(peer,reasons);const p=NET.gr&&NET.gr.peers().find(q=>q.peer===peer);const name=p?peerName(p):'A player';
-  M.sn=M.sn||[];M.sid=M.sid||0;
-  if(an.cheat&&an.cheat.level==='high'){M.ro=M.ro.filter(r=>r[0]!==peer);M.sn=[...M.sn,[peer,'cheat',++M.sid]].slice(-8);sysChat(`${name} was removed: unnatural movement was confirmed.`);}
+  // with the server running the match, the decision goes to the server in our presence; otherwise into M
+  const S=NET.serverRun?{get sn(){return NET.snList;},set sn(v){NET.snList=v;},get sid(){return NET.snId;},set sid(v){NET.snId=v;}}:M;
+  S.sn=S.sn||[];S.sid=S.sid||0;
+  if(an.cheat&&an.cheat.level==='high'){if(NET.serverRun)NET.kickList=[...(NET.kickList||[]),peer].slice(-12);else M.ro=M.ro.filter(r=>r[0]!==peer);S.sn=[...S.sn,[peer,'cheat',++S.sid]].slice(-8);sysChat(`${name} was removed: unnatural movement was confirmed.`);}
   const slurHit=(an.chat&&an.chat.slurs)||(an.name&&an.name.sev===3);
-  if(slurHit){M.sn=[...M.sn,[peer,'slur',++M.sid]].slice(-8);sysChat(`${name} received two strikes for a slur.`);}
-  else if(an.chat&&an.chat.strong){M.sn=[...M.sn,[peer,'chat',++M.sid]].slice(-8);sysChat(`${name} received a chat strike.`);}
-  else if(an.chat&&an.chat.insults){M.sn=[...M.sn,[peer,'warn',++M.sid]].slice(-8);sysChat(`${name} received a warning.`);}
+  if(slurHit){S.sn=[...S.sn,[peer,'slur',++S.sid]].slice(-8);sysChat(`${name} received two strikes for a slur.`);}
+  else if(an.chat&&an.chat.strong){S.sn=[...S.sn,[peer,'chat',++S.sid]].slice(-8);sysChat(`${name} received a chat strike.`);}
+  else if(an.chat&&an.chat.insults){S.sn=[...S.sn,[peer,'warn',++S.sid]].slice(-8);sysChat(`${name} received a warning.`);}
 }
 function hostReportsTick(ps){
   if(!NET.isHost)return;NET.repSeen=NET.repSeen||new Map();
@@ -2452,7 +2461,9 @@ document.getElementById('rematchBtn').addEventListener('click',()=>startSingle()
 document.getElementById('menuBtn').addEventListener('click',()=>{if(LOCAL.mode==='online')leaveOnline();else toMenu();});
 document.getElementById('leaveBtn').addEventListener('click',()=>leaveOnline());
 document.getElementById('specLeave').addEventListener('click',()=>leaveOnline());
-UI.startHost.addEventListener('click',()=>{if(!NET.isHost||!M||(M.ph!=='lobby'&&M.ph!=='vote'))return;hostStartMatch(roomPeers().map(p=>p.peer));sysChat('The host started the match.');});
+UI.startHost.addEventListener('click',()=>{if(!NET.isHost||!M||(M.ph!=='lobby'&&M.ph!=='vote'))return;
+  if(NET.serverRun){NET.startN=(NET.startN||0)+1;sysChat('The host started the match.');return;}
+  hostStartMatch(roomPeers().map(p=>p.peer));sysChat('The host started the match.');});
 function vote(c){if(!M||M.ph!=='vote')return;LOCAL.vote={r:M.vr,c};NET.lastPeerSig='';}
 UI.vS.addEventListener('click',()=>vote('s'));UI.vW.addEventListener('click',()=>vote('w'));
 document.getElementById('specPrev').addEventListener('click',()=>cycleSpec(-1));
@@ -2461,7 +2472,7 @@ document.getElementById('specNext').addEventListener('click',()=>cycleSpec(1));
 function fmtClock(t){const s=Math.ceil(Math.max(0,t));return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;}
 function renderPlayers(ps){
   UI.plist.textContent='';
-  const host=ps.find(p=>p.presence&&p.presence.host)||(NET.isHost?ps.find(p=>p.sameTab):null);
+  const host=NET.serverRun?ps.find(p=>M&&p.peer===M.ow)||(NET.isHost?ps.find(p=>p.sameTab):null):ps.find(p=>p.presence&&p.presence.host)||(NET.isHost?ps.find(p=>p.sameTab):null);
   UI.lhost.textContent=host?`Hosted by ${peerName(host)}`:'Connecting to host…';
   for(const p of ps.filter(p=>p.kind==='viewer')){
     const row=document.createElement('div');row.className='pl';
@@ -2519,6 +2530,7 @@ function onGoal(gl){
 }
 function onPhase(ph,prev){
   logEv('info','Phase '+(prev||'-')+' → '+ph);
+  if(NET.serverRun&&LOCAL.mode==='online'){if(ph==='vote'&&prev!=='vote')sysChat('Vote: start the match now or wait?');else if(ph==='countdown'&&(prev==='vote'||prev==='lobby'))sysChat('The match is starting.');}
   if(ph==='play'&&prev==='countdown')showCount('GO!',true);
   if(ph==='over'){
     const [b,o]=M.sc;const r=rosterEntry(myPeer());
