@@ -20,6 +20,7 @@ Built with three.js; multiplayer runs on Cloudflare Workers with Durable Objects
 - When the page opens it asks `/api/health`. If the answer says `"platform": "cloudflare"`, the MULTIPLAYER button connects; otherwise the game stays in bot-only mode.
 - Every room is one Durable Object. `lobby` is the server list; each hosted match gets its own room named after its code (for example `rs-ab12cd`).
 - Each player sends their state (car, chat, votes) about 30 times a second over a WebSocket, and the room relays it to everyone else. The host's browser is the referee for the ball, score, clock and reports.
+- Only the host moves the ball. Joining players drive their own car and send where it is; the host lets those cars touch its ball. On a joining player's screen the ball is the host's ball, run forward by the measured delay and replayed with their own car's recent path, so their touches show right away and match what the host decides. Other cars and the bot are shown a moment in the past and glide between updates.
 - No accounts: anyone who opens the link can host or join. Names, strikes and suspensions are stored in each player's browser.
 
 ## Deploy on Cloudflare

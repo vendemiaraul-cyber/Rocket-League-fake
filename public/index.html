@@ -1251,13 +1251,13 @@ function carPush(a,b){
 const HB_H=V(0.95,0.6,2.46),HB_O=V(0,0.1,0.01);
 const qi=new THREE.Quaternion(),lp=V(),cl=V(),nW=V(),cW=V(),rv=V(),cpt=V(),dl=V();
 const IMPACT={t:9};
+let REPLAY=false;   // true while a joining player re-runs the ball (no sparks, no sounds)
 function carBall(c){
   cW.copy(HB_O).applyQuaternion(c.q).add(c.pos);qi.copy(c.q).invert();
   lp.copy(BALL.pos).sub(cW).applyQuaternion(qi);
   cl.set(clamp(lp.x,-HB_H.x,HB_H.x),clamp(lp.y,-HB_H.y,HB_H.y),clamp(lp.z,-HB_H.z,HB_H.z));
   dl.subVectors(lp,cl);let d=dl.length();
   if(d>=BALL_R)return;
-  BALL.touchAt=performance.now();
   if(d<1e-4){dl.set(0,1,0);d=0;}else dl.divideScalar(d);
   nW.copy(dl).applyQuaternion(c.q);
   BALL.pos.addScaledVector(nW,BALL_R-d+0.001);
@@ -1272,16 +1272,14 @@ function carBall(c){
       const dir=sT.subVectors(BALL.pos,c.pos);dir.y*=0.35;dir.normalize();
       BALL.vel.addScaledVector(dir,clamp(-vn*0.42,0,20)+2);c.hitCD=0.1;
       const strength=-vn;
-      if(strength>6)burst(cpt,Math.min(140,strength*5)|0,4,10+strength*0.6,[3,3.4,4],[0.3,0.6,1.4],0.5,0.6);
-      if(strength>18){impact.visible=impactRing.visible=true;impact.position.copy(cpt);impactRing.position.copy(cpt);
+      if(strength>6&&!REPLAY)burst(cpt,Math.min(140,strength*5)|0,4,10+strength*0.6,[3,3.4,4],[0.3,0.6,1.4],0.5,0.6);
+      if(strength>18&&!REPLAY){impact.visible=impactRing.visible=true;impact.position.copy(cpt);impactRing.position.copy(cpt);
         impactRing.quaternion.setFromUnitVectors(V(0,0,1),nW);IMPACT.t=0;shake=Math.max(shake,0.25);}
-      BALL.flare=Math.min(1,strength/25);
-      GAME.lastTouch={team:c.team,name:c.nick,aerial};
+      if(!REPLAY){BALL.flare=Math.min(1,strength/25);GAME.lastTouch={team:c.team,name:c.nick,aerial};}
     }
     c.vel.addScaledVector(nW,vn*0.06);
     BALL.spin.crossVectors(nW,rv).multiplyScalar(0.25/BALL_R);
     const s=BALL.vel.length();if(s>62)BALL.vel.multiplyScalar(62/s);
-    if(c===me&&LOCAL.mode==='online'&&!NET.isHost)reportHit(aerial);
   }
 }
 function stepBall(h){
@@ -1471,7 +1469,7 @@ function netCar(c,peer,s,ts,recvAt,dt){
   if(typeof ts!=='number'||!isFinite(ts)||!peer){applyNetCar(c,s,(performance.now()-(recvAt||performance.now()))/1000,dt);return;}
   if(!c.snaps)c.snaps=[];
   if(c.snapNext){c.snaps.length=0;c.lastTs=-1;}
-  if(ts!==c.lastTs){c.lastTs=ts;const v=s.map(Number);if(v.slice(0,10).every(isFinite))pushSnap(c.snaps,senderTime(peer,ts,recvAt||performance.now()),v);}
+  if(ts!==c.lastTs){c.lastTs=ts;c.lastRecv=recvAt||performance.now();const v=s.map(Number);if(v.slice(0,10).every(isFinite))pushSnap(c.snaps,senderTime(peer,ts,recvAt||performance.now()),v);}
   const r=sampleSnaps(c.snaps,performance.now()-netDelay(peer),7,tv,tv2);if(!r)return;
   tv.y=Math.max(CAR_H,tv.y);
   const a=r.A.s,b=r.B.s;qA.set(a[3],a[4],a[5],a[6]).normalize();qB.set(b[3],b[4],b[5],b[6]).normalize();c.q.slerpQuaternions(qA,qB,r.u);
@@ -1479,6 +1477,22 @@ function netCar(c,peer,s,ts,recvAt,dt){
   if(c.snapNext||c.pos.distanceTo(tv)>12){c.pos.copy(tv);c.visQ.copy(c.q);c.snapNext=false;}
   else{c.pos.lerp(tv,1-Math.exp(-25*dt));c.visQ.slerp(c.q,1-Math.exp(-25*dt));}   // light easing hides the odd late update
   const f=(r.u<0.5?a:b)[10]|0;c.boosting=!!(f&1);c.grounded=!!(f&2);sF.set(0,0,1).applyQuaternion(c.q);c.yaw=Math.atan2(sF.x,sF.z);
+  // Where that player's car is right now on their own screen (their latest update, run forward by the
+  // time since they sent it). The host uses this to work out their touches on the ball.
+  const L=c.snaps[c.snaps.length-1];
+  if(L){const S=L.s,e=clamp((performance.now()-(c.lastRecv||performance.now()))/1000+oneWay(c.rt),0,0.3);
+    (c.cpos||(c.cpos=V())).set(S[0]+S[7]*e,Math.max(CAR_H,S[1]+S[8]*e),S[2]+S[9]*e);
+    (c.cq||(c.cq=new THREE.Quaternion())).set(S[3],S[4],S[5],S[6]).normalize();(c.cvel||(c.cvel=V())).set(S[7],S[8],S[9]);
+    c.cgrounded=!!(S[10]&2);c.cAt=performance.now();}
+}
+// Host only: let a remote player's car touch the ball, using where their car is now (t seconds into this frame).
+const rsP=V(),rsV=V(),rsA=V(),rsQ=new THREE.Quaternion();
+function remoteTouch(c,t,h){
+  if(!c.cpos||performance.now()-(c.cAt||0)>500)return;
+  rsP.copy(c.pos);rsQ.copy(c.q);rsV.copy(c.vel);rsA.copy(c.angVel);const g=c.grounded;
+  c.pos.copy(c.cpos).addScaledVector(c.cvel,t);c.q.copy(c.cq);c.vel.copy(c.cvel);c.angVel.set(0,0,0);c.grounded=c.cgrounded;
+  c.hitCD-=h;carBall(c);
+  c.pos.copy(rsP);c.q.copy(rsQ);c.vel.copy(rsV);c.angVel.copy(rsA);c.grounded=g;
 }
 const ballPast=V(),ballPastV=V(),ballPastS=V();let ballPastOn=false;
 // where to draw the ball this frame
@@ -1505,14 +1519,47 @@ function updateBallDisplay(dt){
   BALL.disp.copy(tv).lerp(ballPast,BALL.wPast);
 }
 // one-way time for an update to travel between two players through the server, in seconds
-const tripTime=otherRt=>((NET.gr&&NET.gr.rtt||60)+(otherRt>0?otherRt:60))/2000;
+// One-way delay between a joining player and the host, in seconds, from the round trip measured on
+// every update (see measureRtt). Falls back to 50 ms until we have a measurement.
+const oneWay=rt=>(rt>0?clamp(rt,10,600):100)/2000;
+// The host echoes back each player's latest stamp and how long it held it, so every player can measure
+// the real round trip of their own updates, frame delays included.
+const RTTS=[];
+function measureRtt(hp){
+  const e=Array.isArray(M.echo)?M.echo.find(x=>Array.isArray(x)&&x[0]===NET.myPeer):null;
+  if(!e||!hp.recvAt)return;
+  const sample=hp.recvAt-(+e[1])-(+e[2]);
+  if(!(sample>=0&&sample<2000))return;
+  RTTS.push(sample);if(RTTS.length>15)RTTS.shift();
+  const w=RTTS.slice().sort((a,b)=>a-b);NET.gameRtt=w[Math.floor(w.length/2)];
+}
 // run the ball forward by t seconds with the real physics (bounces included)
+// Our own car's recent path, so we can replay the ball with it.
+const MEHIST=[];
+function recordMe(){
+  const now=performance.now();
+  if(!me.active||LOCAL.mode!=='online'||isAuth()){MEHIST.length=0;return;}
+  MEHIST.push({t:now,p:me.pos.clone(),q:me.q.clone(),v:me.vel.clone(),g:me.grounded});
+  while(MEHIST.length>2&&MEHIST[0].t<now-700)MEHIST.shift();
+}
+const rpP=V(),rpV=V(),rpA=V(),rpQ=new THREE.Quaternion();
+function poseAt(t){
+  let i=MEHIST.length-1;while(i>0&&MEHIST[i-1].t>t)i--;const B=MEHIST[i],A=i>0?MEHIST[i-1]:B;
+  const u=B.t>A.t?clamp((t-A.t)/(B.t-A.t),0,1):1;
+  me.pos.lerpVectors(A.p,B.p,u);me.q.slerpQuaternions(A.q,B.q,u);me.vel.lerpVectors(A.v,B.v,u);me.grounded=u<0.5?A.g:B.g;
+}
+// The host's ball is from t seconds ago. Run it forward to now, letting our car touch it along the way
+// exactly where our car was. If the host already had our touch, the ball has moved off and nothing
+// happens twice; if not, we add it, so our screen agrees with what the host is about to send.
+function replayBall(t){
+  t=clamp(t,0,0.3);if(t<=0)return;
+  const n=Math.ceil(t*120),h=t/n,t0=performance.now()-t*1000,withCar=me.active&&MEHIST.length>1;
+  if(withCar){rpP.copy(me.pos);rpQ.copy(me.q);rpV.copy(me.vel);rpA.copy(me.angVel);}
+  const g=me.grounded,cd=me.hitCD;REPLAY=true;me.hitCD=0;me.angVel.set(0,0,0);
+  try{for(let i=0;i<n;i++){stepBall(h);if(withCar){poseAt(t0+(i+1)*h*1000);carBall(me);me.hitCD-=h;}}}
+  finally{REPLAY=false;if(withCar){me.pos.copy(rpP);me.q.copy(rpQ);me.vel.copy(rpV);me.angVel.copy(rpA);}me.grounded=g;me.hitCD=cd;}
+}
 function advanceBall(t){t=clamp(t,0,0.3);if(t<=0)return;const n=Math.ceil(t*120),h=t/n;for(let i=0;i<n;i++)stepBall(h);}
-function reportHit(aerial){NET.hitN++;NET.hit={n:NET.hitN,b:encodeBall(),a:aerial?1:0,t:Math.round(performance.now())};
-  // After a touch, ignore the host's older updates (they don't have our touch yet) until the host
-  // confirms it. The wait starts with the first touch of a run and is never extended, so pushing the
-  // ball for a long time (say, stuck in a goal) can't make us ignore the host for good.
-  const now=performance.now();if(now>=NET.graceUntil+300)NET.graceUntil=now+clamp((NET.gr&&NET.gr.rtt||150)*2+400,500,1200);}
 const physCars=()=>{const a=[];if(me.active)a.push(me);if(isAuth()&&botCar.active)a.push(botCar);return a;};
 const BAD_CH=new RegExp('[\\u0000-\\u001f\\u007f-\\u009f\\u00ad\\u061c\\u180e\\u200b-\\u200f\\u2028-\\u202e\\u2060-\\u206f\\ufeff\\ue000-\\uf8ff]','g');
 const cleanText=(s,n)=>String(s==null?'':s).replace(BAD_CH,'').slice(0,n).trim();
@@ -1558,28 +1605,6 @@ function hostTick(dt){
     case 'play':M.clk-=dt;if(M.clk<=0){M.clk=0;M.ph='over';M.rem=8;}break;
     case 'goal':M.rem-=dt;if(M.rem<=0){if(M.clk<=0){M.ph='over';M.rem=8;}else hostKickoff();}break;
     case 'over':if(LOCAL.mode==='online'){M.rem-=dt;if(M.rem<=0){M.ph='lobby';M.lr=30;M.ro=[];}}break;
-  }
-  // apply hits reported by other players
-  if(LOCAL.mode==='online'&&livePhase()){
-    for(const p of NET.gr.peers()){
-      if(p.sameTab)continue;const h=p.presence&&p.presence.h;
-      if(!h||!Array.isArray(h.b)||!(h.n>(NET.ackMap.get(p.peer)||0)))continue;
-      NET.ackMap.set(p.peer,h.n);const r=rosterEntry(p.peer);
-      if(!r||BALL.scored||M.ph==='countdown')continue;
-      const b=h.b.map(Number);if(b.length<6||!b.every(isFinite))continue;
-      // the touch happened a trip-time ago on their screen: start from it and run the ball forward to now
-      // time since the touch: from touch to their send (their clock), the trip here, and since it arrived
-      const held=typeof h.t==='number'&&typeof p.presence.ts==='number'?clamp((p.presence.ts-h.t)/1000,0,0.2):0;
-      const trip=held+(Date.now()-p.updatedAt)/1000+tripTime(+p.presence.rt||0);
-      tv2.copy(BALL.pos).add(BALL.off);cTmp.copy(BALL.pos);BALL.tmpV=(BALL.tmpV||V()).copy(BALL.vel);
-      BALL.pos.set(b[0],Math.max(BALL_R,b[1]),b[2]);BALL.vel.set(b[3],b[4],b[5]);advanceBall(trip);
-      // Their touch wins, unless the ball had already been hit here before their touch and the news
-      // of that hit couldn't have reached them yet: then they hit a ball that was no longer there.
-      const since=BALL.touchAt?(performance.now()-BALL.touchAt)/1000:99;
-      if(since>trip&&since<2*trip+0.05&&cTmp.distanceTo(BALL.pos)>6){BALL.pos.copy(cTmp);BALL.vel.copy(BALL.tmpV);continue;}
-      if(tv2.distanceTo(BALL.pos)<25)BALL.off.subVectors(tv2,BALL.pos);else BALL.off.set(0,0,0);   // glide to it rather than teleport
-      GAME.lastTouch={team:r[1],name:peerName(p),aerial:!!h.a};BALL.flare=0.6;
-    }
   }
 }
 
@@ -1874,7 +1899,7 @@ function netTick(dt){
   if(!NET.isHost){
     const hp=ps.find(p=>!p.sameTab&&p.presence&&p.presence.host&&p.presence.g&&typeof p.presence.g==='object');
     if(hp){M=hp.presence.g;NET.hostAge=clamp((Date.now()-hp.updatedAt)/1000,0,0.5);NET.hostSeenAt=performance.now();
-      NET.hostPeer=hp.peer;NET.hostTs=hp.presence.ts;NET.hostRecv=hp.recvAt;NET.hostRt=+hp.presence.rt||0;}
+      NET.hostPeer=hp.peer;NET.hostTs=hp.presence.ts;NET.hostRecv=hp.recvAt;NET.hostRt=+hp.presence.rt||0;NET.hostP=hp;}
     else if(performance.now()-NET.hostSeenAt>(M?4000:9000)){leaveOnline('The host left, so the server closed.');return;}
   }
   pollChat(ps);trackTick(ps);hostReportsTick(ps);sanctionsTick();
@@ -1885,8 +1910,9 @@ function netTick(dt){
 function netSend(){
   if(LOCAL.mode!=='online'||!NET.gr)return;
   me.nick=nick();
-  const pr={ts:Math.round(performance.now()),rt:NET.gr?Math.round(NET.gr.rtt||0):0,nm:nick(),col:colourIdx,c:me.active?encodeCar(me):null,h:NET.hit,v:LOCAL.vote,ch:NET.chatOut,rp:NET.report||null};
-  if(NET.isHost&&M){M.tk=(M.tk+1)%1e6;M.b=encodeBall();M.bot=botCar.active?encodeCar(botCar):null;M.ack=[...NET.ackMap];M.hn=nick();
+  const pr={ts:Math.round(performance.now()),rt:Math.round(NET.gameRtt||0),nm:nick(),col:colourIdx,c:me.active?encodeCar(me):null,v:LOCAL.vote,ch:NET.chatOut,rp:NET.report||null};
+  if(NET.isHost&&M){M.tk=(M.tk+1)%1e6;M.b=encodeBall();
+    {const now=performance.now(),ec=[];for(const p of NET.gr.peers())if(!p.sameTab&&p.presence&&typeof p.presence.ts==='number'&&p.recvAt)ec.push([p.peer,p.presence.ts,Math.round(now-p.recvAt)]);M.echo=ec;}M.bot=botCar.active?encodeCar(botCar):null;M.hn=nick();
     M.rem=r2(M.rem);M.lr=r2(M.lr);M.clk=r2(M.clk);pr.g=M;pr.host=1;}
   NET.gr.presence(pr).catch(e=>logEv('warn','Presence update failed: '+((e&&(e.code||e.message))||e)));
   if(NET.isHost&&NET.room&&GAME.realT-NET.lastAdvert>1){NET.lastAdvert=GAME.realT;
@@ -1897,12 +1923,11 @@ function clientBall(){
   if(M.tk===NET.hostTick)return;NET.hostTick=M.tk;
   const b=M.b.map(Number);if(b.length<6||!b.every(isFinite))return;
   if(typeof NET.hostTs==='number'&&NET.hostPeer)pushSnap(BALL.snaps,senderTime(NET.hostPeer,NET.hostTs,NET.hostRecv||performance.now()),b);
-  let acked=0;for(const a of M.ack||[])if(a[0]===NET.myPeer)acked=a[1];
-  if(performance.now()<NET.graceUntil&&acked<NET.hitN)return;
   // the update is already old by the time we use it: run the ball forward by that much (plus half the ping)
   tv2.copy(BALL.pos).add(BALL.off);
   BALL.pos.set(b[0],Math.max(BALL_R,b[1]),b[2]);BALL.vel.set(b[3],b[4],b[5]);
-  if(M.ph!=='countdown'&&!BALL.scored)advanceBall(NET.hostAge+tripTime(NET.hostRt));
+  measureRtt(NET.hostP||{});
+  if(M.ph!=='countdown'&&!BALL.scored)replayBall(NET.hostAge+oneWay(NET.gameRtt));
   if(M.ph==='countdown'||tv2.distanceTo(BALL.pos)>25)BALL.off.set(0,0,0);
   else BALL.off.subVectors(tv2,BALL.pos);              // keep drawing it where it was, then ease to the corrected spot
 }
@@ -1918,7 +1943,7 @@ function syncRemotes(dt){
       seen.add(p.peer);
       if(car.team!==r[1])setCarTeam(car,r[1]);
       if(car.colIdx!==ci){car.colIdx=ci;car.paint.color.setHex(COLOURS[ci][1]);}
-      car.nick=peerName(p);netCar(car,p.peer,pr.c,pr.ts,p.recvAt,dt);
+      car.nick=peerName(p);car.rt=+pr.rt||0;netCar(car,p.peer,pr.c,pr.ts,p.recvAt,dt);
     }
     if(!isAuth()&&M&&Array.isArray(M.bot)){const br=rosterEntry('bot');
       if(br){if(!botCar.proxy||!botCar.root.visible){botCar.proxy=true;botCar.snapNext=true;showCar(botCar,true);}
@@ -2740,12 +2765,15 @@ function tick(dt){
         if(auth&&botCar.active)stepCar(botCar,h);
         if(me.active){for(const o of others)carPush(me,o);if(auth&&botCar.active)carCar(me,botCar);}
         if(!BALL.scored&&M.ph!=='countdown'){
-          stepBall(h);if(me.active)carBall(me);if(auth&&botCar.active)carBall(botCar);
+          stepBall(h);
+          // only the host moves the ball; joining players' cars touch it on the host
+          if(me.active)carBall(me);   // on a joining player's screen this is only a preview; the host decides
+          if(auth){if(botCar.active)carBall(botCar);if(LOCAL.mode==='online')for(const r of remotes.values())if(r.active)remoteTouch(r,i*h,h);}
           if(auth&&M.ph==='play'){if(BALL.pos.z<-AZ-BALL_R){hostGoal(0);break;}if(BALL.pos.z>AZ+BALL_R){hostGoal(1);break;}}
         }
       }
       me.inp.jumpPressed=false;botCar.inp.jumpPressed=false;
-      padTick(sdt);
+      padTick(sdt);recordMe();
     }
   }else{me.inp.throttle=me.inp.steer=0;me.boosting=false;input.jumpPressed=false;}
   if(M&&M.gn!==LOCAL.lastGoalN)syncFromM();
