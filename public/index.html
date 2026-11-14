@@ -1497,9 +1497,21 @@ const GAME_SERVER='';
 const SERVER_RE=/^https?:\/\/[a-z0-9.-]+(:\d+)?\/?$/i;
 const SERVER_KEY='rs-server';
 function savedServer(){try{const v=localStorage.getItem(SERVER_KEY)||'';return SERVER_RE.test(v)?v.replace(/\/$/,''):'';}catch(e){return '';}}
+// A site can also name its game server in server.json, written at build time from the host's
+// GAME_SERVER setting (see scripts/site-server.mjs), so players don't have to enter it.
+let SITE_SERVER='',siteServerLoaded=false;
+async function loadSiteServer(){
+  if(siteServerLoaded||!/^https?:$/.test(location.protocol))return;siteServerLoaded=true;
+  try{const ctl=new AbortController();const to=setTimeout(()=>ctl.abort(),3000);
+    const r=await fetch('server.json',{cache:'no-store',signal:ctl.signal});clearTimeout(to);
+    if(!r.ok)return;const j=await r.json();const v=j&&typeof j.server==='string'?j.server.trim():'';
+    if(SERVER_RE.test(v)){SITE_SERVER=v.replace(/\/$/,'');logEv('info','This site\'s game server: '+SITE_SERVER);renderServerPick();}
+  }catch(e){}
+}
 function serverBase(){
   try{const q=new URLSearchParams(location.search).get('server');if(q&&SERVER_RE.test(q))return q.replace(/\/$/,'');}catch(e){}
   const mine=savedServer();if(mine)return mine;
+  if(SITE_SERVER)return SITE_SERVER;
   if(GAME_SERVER)return GAME_SERVER.replace(/\/$/,'');
   return /^https?:$/.test(location.protocol)?location.origin:'';
 }
@@ -1574,6 +1586,7 @@ class RoomConn{
 }
 async function initNet(){
   NET.netState='pending';renderServers();detectHosting();
+  await loadSiteServer();
   if(!(await detectServer())){setOnline(false);logEv('warn','No Rocket Strike server found'+(serverBase()?' at '+serverBase():'')+'; online play is off');return;}
   NET.platform='cloudflare';logEv('info','Cloudflare game server found at '+serverBase());
   connectLobby();
@@ -1591,7 +1604,7 @@ const openRoom=code=>new RoomConn(code).open();
 /* ---- choosing a game server ---- */
 function serverLabel(){
   const b=serverBase();if(!b)return 'none';
-  try{const u=new URL(b);return u.origin===location.origin?'this site':u.host;}catch(e){return b;}
+  try{const u=new URL(b);return u.origin===location.origin?'this site':b===SITE_SERVER?u.host+' (this site\'s server)':u.host;}catch(e){return b;}
 }
 function renderServerPick(){const el=document.getElementById('srvName');if(el)el.textContent=serverLabel();}
 async function useServer(url){
@@ -1603,7 +1616,7 @@ async function useServer(url){
 }
 function openServerPicker(){
   openModal(box=>{
-    box.append(h('h3',null,'Game server'),h('p','muted','Matches run through a Rocket Strike server on Cloudflare. Leave this on "This site" unless someone gave you the address of their server. Your choice is saved only on this device.'));
+    box.append(h('h3',null,'Game server'),h('p','muted','Matches run through a Rocket Strike server on Cloudflare. Leave this on "This site" unless someone gave you the address of their server; "This site" uses the server the site is set up with. Your choice is saved only on this device.'));
     const inp=h('input');inp.id='srvIn';inp.placeholder='https://rocket-strike.example.workers.dev';inp.autocomplete='off';inp.spellcheck=false;inp.value=savedServer();
     inp.addEventListener('keydown',e=>e.stopPropagation());
     const note=h('p','muted','');
