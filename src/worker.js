@@ -13,7 +13,7 @@
 // 30 times a second as a player called "srv". So no browser has to stay in front for the match to run.
 import { Match } from './match.js';
 import { KNOWLEDGE } from './assistant-knowledge.js';
-import { aiRun, aiText, planResearch, runTask } from './research.js';
+import { aiRun, aiText, planResearch, runTask, focusTasks } from './research.js';
 
 const ROOM_RE = /^[a-z0-9][a-z0-9_.-]{0,47}$/;
 const MAX_MSG = 16 * 1024;          // bytes per message
@@ -89,10 +89,19 @@ async function assistant(request, env) {
   const lang = /^[a-z]{2,3}$/.test(String(b.lang || '')) ? b.lang : 'en';
   const diag = `\n\nPLAYER STATUS (private, from their game): ${status || 'not shared'}\nPLAYER GAME LOG (private, newest last):\n${log || 'not shared'}`;
   const question = msgs[msgs.length - 1].content;
+  // Helper modes (set in the game): light = no research; stabilized = double-check the on-device answer with two code
+  // checkers; ultra = diagnose a full check with two code checkers and pick exactly one fix for the game to apply.
+  const mode = ['light', 'stabilized', 'ultra'].includes(b.mode) ? b.mode : '';
+  const local = clean(b.local, 1500).trim();
+  const fixes = (Array.isArray(b.fixes) ? b.fixes : []).slice(0, 10)
+    .map(f => ({ id: String((f && f.id) || ''), what: clean(f && f.what, 100).trim() })).filter(f => /^[a-z_]{2,24}$/.test(f.id) && f.what);
+  let extra = '';
+  if (local) extra += `\n\nDOUBLE-CHECK MODE: the game's own small on-device model already answered the player with:\n---\n${local}\n---\nCheck it against your notes, the log and the research. Start with "✓ That's right" or "✗ Not quite", then add what's missing or correct it, briefly.`;
+  if (mode === 'ultra') extra += `\n\nULTRA MODE: the player ran a full check (device, assets, connection). Diagnose the most likely cause from the check, the log and the research notes, in a few short lines. Then choose exactly ONE fix the game can apply by itself (the one most likely to help), or none. End your reply with a last line exactly like "FIX: <id>", using one of these ids:\n${fixes.map(f => `- ${f.id}: ${f.what}`).join('\n')}\n- none: nothing to change`;
 
   // the answer itself, from the notes, the player's log and any research
   const answer = async notes => {
-    const messages = [{ role: 'system', content: SYSTEM + diag + (notes ? `\n\nRESEARCH NOTES (from your mini helpers, private):\n${notes}` : '') }, ...msgs];
+    const messages = [{ role: 'system', content: SYSTEM + diag + extra + (notes ? `\n\nRESEARCH NOTES (from your mini helpers, private):\n${notes}` : '') }, ...msgs];
     let r; try { r = await aiRun(env, AI_MODEL, messages, 1200); } catch (e) { console.error('assistant', e && e.message); return ''; }
     return aiText(r).trim().slice(0, 4000);
   };
@@ -110,7 +119,8 @@ async function assistant(request, env) {
   const send = o => w.write(enc.encode(JSON.stringify(o) + '\n')).catch(() => {});
   (async () => {
     try {
-      const tasks = b.research === 0 ? [] : await planResearch(env, msgs);
+      const focus = focusTasks(b.focus);
+      const tasks = focus.length ? focus : (b.research === 0 || mode === 'light') ? [] : await planResearch(env, msgs);
       await send({ ev: 'plan', tasks: tasks.map(t => ({ kind: t.kind, label: t.label })) });
       const notes = [], sources = [];
       await Promise.all(tasks.map(async (t, i) => {
@@ -119,8 +129,12 @@ async function assistant(request, env) {
         for (const s of res.sources || []) if (!sources.some(x => x.url === s.url)) sources.push(s);
         await send({ ev: 'task', i, ok: !!res.ok });
       }));
-      const reply = await answer(notes.join('\n\n'));
-      await send(reply ? { ev: 'reply', ok: true, reply, sources: sources.slice(0, 4) } : { ev: 'reply', ok: false, reason: 'ai_error' });
+      let reply = await answer(notes.join('\n\n')), fix = '';
+      if (reply && mode === 'ultra') {
+        const m = reply.match(/^[ \t*_]*FIX:[ \t*_]*([a-z_]+)[ \t*_.]*$/im);
+        if (m) { fix = fixes.some(f => f.id === m[1]) ? m[1] : ''; reply = reply.replace(m[0], '').trim(); }
+      }
+      await send(reply ? { ev: 'reply', ok: true, reply, sources: sources.slice(0, 4), fix } : { ev: 'reply', ok: false, reason: 'ai_error' });
     } catch (e) {
       console.error('assistant stream', e && e.message);
       await send({ ev: 'reply', ok: false, reason: 'ai_error' });

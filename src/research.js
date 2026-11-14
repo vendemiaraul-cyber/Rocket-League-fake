@@ -54,6 +54,17 @@ export async function planResearch(env, msgs) {
   catch (e) { return []; }
   return parsePlan(aiText(r));
 }
+// Code-checking jobs the game asks for (Stabilized and Ultra modes): at most two, code only, plain search words.
+export function focusTasks(list) {
+  const out = [];
+  for (const f of Array.isArray(list) ? list.slice(0, 2) : []) {
+    const q = String((f && f.q) || '').replace(/[^\p{L}\p{N} _.'-]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 100);
+    const label = String((f && f.label) || q).replace(/[\u0000-\u001f<>]/g, ' ').trim().slice(0, 40);
+    if (q.length >= 2) out.push({ kind: 'code', q, label: label || q, second: out.length === 1 });
+  }
+  if (out.length === 2 && out[0].q === out[1].q) out[1].sameQ = true;
+  return out;
+}
 export function parsePlan(text) {
   const m = String(text || '').match(/\{[\s\S]*\}/);
   if (!m) return [];
@@ -96,7 +107,7 @@ async function loadCode(env) {
 }
 const terms = q => [...new Set(String(q).toLowerCase().split(/[^a-z0-9_]+/).filter(w => w.length >= 3 && !STOP.has(w)))].slice(0, 10);
 function count(hay, w) { let n = 0, i = 0; while ((i = hay.indexOf(w, i)) !== -1 && n < 6) { n++; i += w.length; } return n; }
-export function pickChunks(chunks, q) {
+export function pickChunks(chunks, q, skip = 0) {
   const ws = terms(q);
   if (!ws.length || !chunks.length) return [];
   const df = ws.map(w => chunks.reduce((n, c) => n + (c.low.includes(w) ? 1 : 0), 0));
@@ -106,7 +117,7 @@ export function pickChunks(chunks, q) {
     return { i, s: s * hit };
   }).filter(x => x.s > 0).sort((a, b) => b.s - a.s);
   const out = []; let size = 0;
-  for (const x of scored) {
+  for (const x of scored.slice(skip)) {
     const t = chunks[x.i].text;
     if (size + t.length > MAX_EXCERPT) continue;
     out.push(t); size += t.length;
@@ -114,11 +125,12 @@ export function pickChunks(chunks, q) {
   }
   return out;
 }
+const SECOND_SYS = 'You are the second code checker for the Rocket Strike game helper. Another helper is reading the most obvious part of the code; you read other parts. From these excerpts, find other possible causes of the player\'s problem, conditions that make it happen, and anything a first explanation could miss. Notes of at most 130 words, plain words. Do not paste code and do not mention file names, function or variable names. If nothing here is related, say so.';
 async function researchCode(env, task, question) {
-  const chunks = pickChunks(await loadCode(env), task.q);
+  const chunks = pickChunks(await loadCode(env), task.q, task.second && task.sameQ ? 3 : 0);
   if (!chunks.length) return { ok: false, notes: '' };
   const r = await aiRun(env, MINI_MODEL, [
-    { role: 'system', content: 'You are a research helper for the Rocket Strike game helper. Read the excerpts of the game\'s own code and write notes (at most 130 words) that answer the research question in plain words: what happens, the numbers that matter, and how a player notices it. Do not paste code and do not mention file names, function or variable names. If the excerpts don\'t answer it, say what is missing.' },
+    task.second ? { role: 'system', content: SECOND_SYS } : { role: 'system', content: 'You are a research helper for the Rocket Strike game helper. Read the excerpts of the game\'s own code and write notes (at most 130 words) that answer the research question in plain words: what happens, the numbers that matter, and how a player notices it. Do not paste code and do not mention file names, function or variable names. If the excerpts don\'t answer it, say what is missing.' },
     { role: 'user', content: `Research question: ${task.label} (${task.q})\nThe player asked: ${question.slice(0, 400)}\n\nCODE EXCERPTS:\n${chunks.map((c, i) => `--- excerpt ${i + 1} ---\n${c}`).join('\n')}` },
   ], 1000);
   const notes = aiText(r).trim().slice(0, 1500);
