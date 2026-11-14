@@ -200,24 +200,36 @@ body.spect .ingame .boost,body.spect .camtag{display:none}
 #fpsMeter[hidden]{display:none}
 #setBtn{align-self:center}
 /* ---- AI helper orb ---- */
-#orb{position:fixed;z-index:36;width:62px;height:62px;left:0;top:0;touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none;transition:opacity .2s,transform .2s}
+#orb{position:fixed;z-index:36;width:66px;height:66px;left:0;top:0;touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none;transition:opacity .2s,transform .2s;perspective:260px}
 #orb.dragging{cursor:grabbing}
-#orb .body{position:absolute;inset:0;border-radius:50%;animation:orbBob 3.2s ease-in-out infinite}
-#orb .glow{position:absolute;inset:-14px;border-radius:50%;background:radial-gradient(circle,rgba(110,190,255,.55),rgba(110,190,255,0) 68%);animation:orbGlow 2.4s ease-in-out infinite}
-#orb svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
-#orb .eye{transform-origin:center;transform-box:fill-box;animation:orbBlink 4.6s infinite}
-#orb .ring{opacity:0;transform-origin:31px 31px}
-#orb.think .ring{opacity:1;animation:orbSpin 1s linear infinite}
-#orb.think .pupils{animation:orbLook 1.2s ease-in-out infinite}
-#orb.open .body{animation-duration:1.6s}
-#orb.happy .mouth{d:path("M20 37 Q31 49 42 37")}
+#orb .float{position:absolute;inset:0;animation:orbBob 3.4s ease-in-out infinite}
+#orb .aura{position:absolute;inset:-12px;border-radius:50%;background:conic-gradient(from 0deg,rgba(91,140,255,.55),rgba(180,107,255,.5),rgba(255,111,181,.45),rgba(79,227,255,.55),rgba(91,140,255,.55));filter:blur(14px);opacity:.75;animation:orbSwirl 9s linear infinite}
+#orb .blob{position:absolute;inset:5px;overflow:hidden;background:#3a2fd8;border-radius:46% 54% 51% 49%/53% 47% 53% 47%;animation:orbMorph 7s ease-in-out infinite;
+  box-shadow:inset -7px -9px 14px rgba(14,4,52,.6),inset 6px 7px 12px rgba(255,255,255,.32),0 9px 20px rgba(38,20,130,.55),0 0 0 1px rgba(255,255,255,.18)}
+#orb .swirl{position:absolute;inset:-35%;background:conic-gradient(from 0deg,#4f7dff,#a765ff,#ff6fb3,#ffae6b,#4fe0ff,#4f7dff);filter:blur(7px);animation:orbSwirl 7s linear infinite}
+#orb .swirl.b{inset:-15%;background:conic-gradient(from 140deg,rgba(79,224,255,0),rgba(79,224,255,.95) 18%,rgba(255,111,179,0) 40%,rgba(167,101,255,.85) 62%,rgba(79,224,255,0) 80%);mix-blend-mode:screen;filter:blur(5px);animation:orbSwirl 4.6s linear infinite reverse}
+#orb .shade{position:absolute;inset:0;border-radius:inherit;background:radial-gradient(circle at 30% 26%,rgba(255,255,255,.38),rgba(255,255,255,0) 38%),radial-gradient(circle at 72% 80%,rgba(12,2,46,.62),rgba(12,2,46,0) 58%)}
+#orb .gloss{position:absolute;left:18%;top:11%;width:34%;height:20%;border-radius:50%;background:rgba(255,255,255,.75);filter:blur(2px);transform:rotate(-24deg);opacity:.8}
+#orb .face{position:absolute;left:50%;top:50%;width:32px;height:24px;margin:-11px 0 0 -16px;
+  transform:translate(var(--lx,0px),var(--ly,0px)) scale(var(--sx,1),var(--sy,1));transition:transform .5s cubic-bezier(.3,.85,.3,1);filter:drop-shadow(0 1px 1.5px rgba(10,0,40,.45))}
+#orb .face svg{width:100%;height:100%;overflow:visible}
+#orb .eye{transform-origin:center;transform-box:fill-box;animation:orbBlink 4.8s infinite}
+#orb .smile.big{opacity:0}
+#orb.happy .smile.small{opacity:0}#orb.happy .smile.big{opacity:1}
+#orb.think .swirl{animation-duration:1.4s}#orb.think .swirl.b{animation-duration:1s}#orb.think .aura{animation-duration:2s;opacity:1}
+#orb.think .face{animation:orbFaceSpin 1.15s linear infinite}
+#orb.spin .face{animation:orbFaceSpin .85s cubic-bezier(.45,.05,.55,.95) 1}
+#orb.spin .blob,#orb.think .blob{animation:orbMorph 7s ease-in-out infinite,orbSquash .85s ease-in-out}
 body.driving #orb:not(.open){opacity:.55;transform:scale(.82)}
 @keyframes orbBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
-@keyframes orbGlow{0%,100%{opacity:.55;transform:scale(.92)}50%{opacity:1;transform:scale(1.06)}}
-@keyframes orbBlink{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.1)}}
-@keyframes orbSpin{to{transform:rotate(360deg)}}
-@keyframes orbLook{0%,100%{transform:translateX(0)}30%{transform:translateX(-2.5px)}70%{transform:translateX(2.5px)}}
-@media (prefers-reduced-motion:reduce){#orb .body,#orb .glow,#orb .eye,#orb.think .ring,#orb.think .pupils{animation:none}}
+@keyframes orbSwirl{to{transform:rotate(360deg)}}
+@keyframes orbMorph{0%,100%{border-radius:46% 54% 51% 49%/53% 47% 53% 47%}33%{border-radius:53% 47% 45% 55%/48% 55% 45% 52%}66%{border-radius:49% 51% 56% 44%/55% 49% 51% 45%}}
+@keyframes orbSquash{0%,100%{transform:scale(1)}50%{transform:scale(1.06,.95)}}
+@keyframes orbBlink{0%,93%,100%{transform:scaleY(1)}96%{transform:scaleY(.12)}}
+/* spinning: the face sweeps across and round the back, like a turning ball */
+@keyframes orbFaceSpin{0%{transform:translate(0,0) scale(1,1);opacity:1}38%{transform:translate(21px,0) scale(.18,1);opacity:0}
+  39%{transform:translate(-21px,0) scale(.18,1);opacity:0}100%{transform:translate(0,0) scale(1,1);opacity:1}}
+@media (prefers-reduced-motion:reduce){#orb .float,#orb .aura,#orb .blob,#orb .swirl,#orb .eye,#orb.think .face,#orb.spin .face{animation:none}}
 #orbChat{position:fixed;z-index:35;width:min(310px,calc(100vw - 20px));max-height:min(430px,calc(100vh - 20px));display:flex;flex-direction:column;
   background:rgba(10,14,32,.97);border:1px solid rgba(124,198,255,.35);border-radius:16px;box-shadow:0 18px 50px rgba(0,0,0,.55);overflow:hidden;color:#e8eefc;font-size:13px}
 #orbChat[hidden]{display:none}
@@ -390,16 +402,17 @@ body.touch #playersBtn{transform:translateX(calc(-50% - 30px))}
 </div>
 <div id="fpsMeter" hidden>-- FPS</div>
 <div id="orb" role="button" tabindex="0" aria-label="Rocket Strike helper: tap to chat, drag to move">
-  <div class="glow"></div>
-  <div class="body"><svg viewBox="0 0 62 62" aria-hidden="true">
-    <defs><radialGradient id="orbG" cx="38%" cy="32%" r="70%"><stop offset="0" stop-color="#e9f6ff"/><stop offset=".35" stop-color="#7cc6ff"/><stop offset=".8" stop-color="#2f6bff"/><stop offset="1" stop-color="#1b3fb8"/></radialGradient></defs>
-    <circle class="ring" cx="31" cy="31" r="29.5" fill="none" stroke="#ffb066" stroke-width="2.5" stroke-dasharray="22 70" stroke-linecap="round"/>
-    <circle cx="31" cy="31" r="26" fill="url(#orbG)" stroke="rgba(255,255,255,.7)" stroke-width="1.5"/>
-    <ellipse cx="23" cy="18" rx="8" ry="4.5" fill="#fff" opacity=".55" transform="rotate(-25 23 18)"/>
-    <g class="pupils"><ellipse class="eye" cx="23" cy="28" rx="3.2" ry="4.2" fill="#0b1636"/><ellipse class="eye" cx="39" cy="28" rx="3.2" ry="4.2" fill="#0b1636"/></g>
-    <circle cx="17" cy="35" r="3" fill="#ff8fb0" opacity=".45"/><circle cx="45" cy="35" r="3" fill="#ff8fb0" opacity=".45"/>
-    <path class="mouth" d="M22 37 Q31 45 40 37" fill="none" stroke="#0b1636" stroke-width="2.6" stroke-linecap="round"/>
-  </svg></div>
+  <div class="float">
+    <div class="aura"></div>
+    <div class="blob">
+      <div class="swirl"></div><div class="swirl b"></div><div class="shade"></div><div class="gloss"></div>
+      <div class="face"><svg viewBox="0 0 32 24" aria-hidden="true">
+        <ellipse class="eye" cx="10" cy="8" rx="2.4" ry="3.2" fill="#fff"/><ellipse class="eye" cx="22" cy="8" rx="2.4" ry="3.2" fill="#fff"/>
+        <path class="smile small" d="M9.5 15.5 Q16 20.5 22.5 15.5" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>
+        <path class="smile big" d="M8.5 14.5 Q16 23 23.5 14.5" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/>
+      </svg></div>
+    </div>
+  </div>
 </div>
 <div id="orbChat" hidden role="dialog" aria-label="Rocket Strike helper">
   <div class="oc-head"><b>RS HELPER</b><button type="button" id="orbClose" aria-label="Close">&times;</button></div>
@@ -2771,7 +2784,7 @@ orbEl.addEventListener('pointermove',e=>{
   ORB.x=clamp((orbDrag.ox+dx)/Math.max(1,innerWidth-62),0,1);ORB.y=clamp((orbDrag.oy+dy)/Math.max(1,innerHeight-62),0,1);placeOrb();
 });
 const orbUp=e=>{if(!orbDrag||e.pointerId!==orbDrag.id)return;const moved=orbDrag.moved;orbDrag=null;orbEl.classList.remove('dragging');
-  if(moved){try{localStorage.setItem('rs-orb',JSON.stringify(ORB));}catch(err){}}else toggleOrbChat();};
+  if(moved){try{localStorage.setItem('rs-orb',JSON.stringify(ORB));}catch(err){}}else{orbSpin();toggleOrbChat();}};
 orbEl.addEventListener('pointerup',orbUp);orbEl.addEventListener('pointercancel',e=>{orbDrag=null;orbEl.classList.remove('dragging');});
 orbEl.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();toggleOrbChat();}});
 document.getElementById('orbClose').addEventListener('click',()=>toggleOrbChat(false));
@@ -2783,7 +2796,19 @@ function toggleOrbChat(open){
     placeChat();setTimeout(()=>{aiLogEl.scrollTop=aiLogEl.scrollHeight;if(!IS_TOUCH)aiInEl.focus();},0);}
 }
 function aiSay(cls,text,raw){const d=h('div','aimsg '+cls);if(raw)d.textContent=text;else d.innerHTML=aiFormat(text);aiLogEl.appendChild(d);aiLogEl.scrollTop=aiLogEl.scrollHeight;return d;}
-function orbMood(m){orbEl.classList.toggle('think',m==='think');orbEl.classList.toggle('happy',m==='happy');if(m==='happy')setTimeout(()=>orbEl.classList.remove('happy'),2500);}
+function orbSpin(){orbEl.classList.remove('spin');void orbEl.offsetWidth;orbEl.classList.add('spin');setTimeout(()=>orbEl.classList.remove('spin'),900);}
+function orbMood(m){orbEl.classList.toggle('think',m==='think');orbEl.classList.toggle('happy',m==='happy');if(m==='happy'){orbSpin();setTimeout(()=>orbEl.classList.remove('happy'),2600);}}
+// the face looks around: random glances, and towards the chat while it's open. Turning to the side squeezes it
+// a little, as if it's moving round a ball.
+const orbFace=orbEl.querySelector('.face');
+function orbLook(x,y){const lx=clamp(x,-8,8),ly=clamp(y,-6,5);orbFace.style.setProperty('--lx',lx+'px');orbFace.style.setProperty('--ly',ly+'px');
+  orbFace.style.setProperty('--sx',(1-Math.abs(lx)/26).toFixed(3));orbFace.style.setProperty('--sy',(1-Math.abs(ly)/30).toFixed(3));}
+setInterval(()=>{
+  if(orbDrag||orbEl.classList.contains('think')||document.hidden)return;
+  if(!orbChat.hidden){const o=orbEl.getBoundingClientRect(),c=orbChat.getBoundingClientRect();const dx=(c.left+c.width/2)-(o.left+o.width/2),dy=(c.top+c.height/2)-(o.top+o.height/2),d=Math.hypot(dx,dy)||1;
+    orbLook(dx/d*6+(Math.random()-.5)*2,dy/d*5);return;}
+  const r=Math.random();if(r<.3)orbLook(0,0);else orbLook((Math.random()*2-1)*8,(Math.random()*2-1)*5);
+},2200);
 const chipsEl=document.getElementById('aiChips');
 for(const [label,fn] of [['Run a check',()=>runCheck()],['How do I flip?',()=>askAI('How do I flip?')],['Tips to score more',()=>askAI('Give me tips to score more goals.')],['The game lags',()=>askAI('The game lags. What can I do?')]]){
   const b=h('button',label==='Run a check'?'check':'',label);b.type='button';b.addEventListener('click',fn);chipsEl.appendChild(b);}
