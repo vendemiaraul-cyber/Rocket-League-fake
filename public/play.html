@@ -2762,7 +2762,7 @@ function openSettings(){
     pr.appendChild(h('p','muted','Your name, paint, settings and chat strikes are saved only in this browser. Want a second opinion? Scan any of the links below on VirusTotal.'));
     const ul=h('ul','linklist');
     const links=[['This site',location.origin],['Game server',serverBase()||'none (playing offline against the bot)'],['3D engine (three.js)','https://cdn.jsdelivr.net/npm/three@0.165.0/'],
-      ['Fonts (Google Fonts)','https://fonts.googleapis.com'],['Source code (anyone can read it)',SOURCE_URL],['Discord server',DISCORD_URL],['Rocket Strike AI (our own model, trained with PyTorch, runs on your device)',new URL('ai/rs-ai.json',location.href).href],['Cloud helper for harder questions (gpt-oss-120b via Workers AI)',(serverBase()||'none')+'/api/assistant'],['Virus check (VirusTotal)','https://www.virustotal.com/gui/home/url']];
+      ['Fonts (Google Fonts)','https://fonts.googleapis.com'],['Source code (anyone can read it)',SOURCE_URL],['Discord server',DISCORD_URL],['Rocket Strike AI (our own model, trained with PyTorch, runs on your device)',new URL('ai/rs-ai.json',location.href).href],['Cloud helper for harder questions (gpt-oss-120b via Workers AI)',(serverBase()||'none')+'/api/assistant'],['Mini helpers: game code they read (on your device)',SOURCE_RAW],['Mini helpers: Wikipedia lookups (on your device)','https://www.wikipedia.org'],['Virus check (VirusTotal)','https://www.virustotal.com/gui/home/url']];
     for(const [label,url] of links){const li=h('li');li.appendChild(h('b',null,label));
       if(/^https?:\/\//.test(url)){const l=h('a',null,url);l.href=url;l.target='_blank';l.rel='noopener noreferrer';li.appendChild(l);}else li.appendChild(h('code',null,url));ul.appendChild(li);}
     pr.appendChild(ul);box.appendChild(pr);
@@ -2870,11 +2870,82 @@ async function rsaiAnswer(q,any){
 }
 // Asks the helper. The server first decides whether to send mini helpers to research (the game's code, or
 // Wikipedia) and streams their progress, one JSON object per line; older servers just answer.
+/* ---- mini helpers, on this device: they search the game's own code (this page, and the server's files from the
+   public source) and Wikipedia right here, then hand what they found to the helper. No AI calls for them, so a
+   researched question costs one cloud call (the answer) instead of three. ---- */
+const SOURCE_RAW='https://raw.githubusercontent.com/vendemiaraul-cyber/Rocket-League-fake/main/';
+const DEV_CODE={chunks:null,loading:null};
+const DEV_SKIP=/SWEAR_|SLUR_|PLACE_NEG|PLACE_SKIP|LEET=|data:image|base64,/;
+const DEV_SELF=/GAME_WORDS|TOPIC_CODE|CHECK_CODE|TROUBLE_RE|DEV_STOP|DEV_SKIP|DEV_SELF|function devPlan|CODE_STOP|CODE_SYS|SECOND_SYS|PLAN_SYSTEM/;   // the helpers' own word lists would match every search
+const DEV_STOP=new Set('the and for with that this how does what why when where are was were you your from into game rocket strike work works working code coded about can will would which then than there their them they its'.split(' '));
+function devLoadCode(){
+  if(DEV_CODE.chunks)return Promise.resolve(DEV_CODE.chunks);
+  if(DEV_CODE.loading)return DEV_CODE.loading;
+  DEV_CODE.loading=(async()=>{
+    const get=async u=>{try{const r=await fetch(u,{cache:'force-cache'});return r.ok?await r.text():'';}catch(e){return '';}};
+    const texts=await Promise.all([get(location.href.split('#')[0].split('?')[0]),...['src/match.js','src/physics.js','src/worker.js','README.md'].map(f=>get(SOURCE_RAW+f))]);
+    const chunks=[];
+    for(const t of texts){
+      const lines=t.split('\n').filter(l=>!DEV_SKIP.test(l)).map(l=>l.length>300?l.slice(0,300)+'…':l);
+      for(let i=0;i<lines.length;i+=12){const text=lines.slice(i,i+12).join('\n').trim();if(text&&!DEV_SELF.test(text))chunks.push({text,low:text.toLowerCase()});}
+    }
+    DEV_CODE.loading=null;if(chunks.length)DEV_CODE.chunks=chunks;return chunks;
+  })();
+  return DEV_CODE.loading;
+}
+function devTerms(q){return [...new Set(String(q).toLowerCase().split(/[^a-z0-9_]+/).filter(w=>w.length>=3&&!DEV_STOP.has(w)))].slice(0,10);}
+function devPick(chunks,q,skip){
+  const ws=devTerms(q);if(!ws.length||!chunks.length)return [];
+  const cnt=(hay,w)=>{let n=0,i=0;while((i=hay.indexOf(w,i))!==-1&&n<6){n++;i+=w.length;}return n;};
+  const df=ws.map(w=>chunks.reduce((n,c)=>n+(c.low.includes(w)?1:0),0));
+  const scored=[];chunks.forEach((c,i)=>{let s=0,hit=0;ws.forEach((w,k)=>{const n=cnt(c.low,w);if(n){hit++;s+=Math.log(1+chunks.length/df[k])*(1+Math.log(n));}});if(s>0)scored.push({i,s:s*hit});});
+  scored.sort((a,b)=>b.s-a.s);
+  const out=[];let size=0;
+  for(const x of scored.slice(skip||0)){const t=chunks[x.i].text;if(size+t.length>3200)continue;out.push(t);size+=t.length;if(out.length>=4)break;}
+  return out;
+}
+async function devWiki(q){
+  const lang=String(navigator.language||'en').slice(0,2).toLowerCase();
+  const look=async l=>{
+    const u=`https://${l}.wikipedia.org/w/api.php?action=query&format=json&formatversion=2&origin=*&generator=search&gsrlimit=2&gsrsearch=${encodeURIComponent(q)}`+
+      '&prop=extracts|info&inprop=url&exintro=1&explaintext=1&exlimit=2&exchars=1200';
+    try{const r=await fetch(u);const j=r.ok?await r.json():null;return ((j&&j.query&&j.query.pages)||[]).filter(p=>p&&p.extract).sort((a,b)=>(a.index||0)-(b.index||0)).slice(0,2);}catch(e){return [];}
+  };
+  let pages=/^[a-z]{2}$/.test(lang)&&lang!=='en'?await look(lang):[];if(!pages.length)pages=await look('en');
+  return pages;
+}
+// one mini helper's job -> a note for the helper ({kind,label,text,sources}) or null
+async function devResearch(t,all){
+  if(t.kind==='web'){
+    const pages=await devWiki(t.q);if(!pages.length)return null;
+    return {kind:'web',label:t.label,text:pages.map(p=>`Wikipedia: ${p.title}\n${p.extract}`).join('\n\n').slice(0,3500),
+      sources:pages.map(p=>({title:String(p.title).slice(0,80),url:String(p.fullurl||'')}))};
+  }
+  const chunks=await devLoadCode();
+  const sameQ=t.second&&all.some(x=>x!==t&&!x.second&&x.q===t.q);
+  const ex=devPick(chunks,t.q,sameQ?4:0);if(!ex.length)return null;
+  return {kind:'code',label:t.label,text:ex.map((c,i)=>`--- excerpt ${i+1} ---\n${c}`).join('\n').slice(0,3500)};
+}
+// Decides on this device whether a question needs research: how the game works -> the code; a general topic -> Wikipedia.
+const GAME_WORDS=/\b(ball|car|cars|boost|flip|goal|bot|match|server|lobby|helper|orb|rocket strike|game|kickoff|jump|arena|multiplayer|chat|host)\b/i;
+function devPlan(q,label){
+  const t=[],low=String(q).toLowerCase();
+  if(/\b(code|coded|coding|programm|script|source|algorithm|physics|netcode|engine|three ?js|javascript|function|codice|programmat)\b/.test(low)||
+     (GAME_WORDS.test(low)&&/\bhow (does|do|is|are)\b.{0,60}\b(work|made|built|calculated|decided|move|bounce|sync)/.test(low))||/come funziona/.test(low)&&GAME_WORDS.test(low))
+    t.push({kind:'code',q:qWords(q)||'ball',label:'how it works in the code'});
+  if(label==='other'||!label){
+    const topic=String(q).replace(/^(hey|hi|ciao|so|um|please|pls)\b[ ,]*/i,'').replace(/^(what|who|when|where|why|how)('s| is| are| was| were| did| does| do)?\s+(a |an |the )?/i,'')
+      .replace(/^(cos'?è|cosa è|chi è|chi era|quando|dove|perch[eé])\s+/i,'').replace(/\b(in rocket strike|in this game|please|pls)\b/gi,'').replace(/[?!.]+$/,'').trim();
+    const general=!GAME_WORDS.test(low)||/rocket league|psyonix|wikipedia/.test(low);
+    if(general&&topic.length>=3&&t.length<2)t.push({kind:'web',q:topic.slice(0,60),label:topic.slice(0,32)});
+  }
+  return t.slice(0,2);
+}
 /* ---- helper modes: LIGHT (the default, cheapest), STABILIZED (double-checks problems with two code checkers),
    ULTRA (full check + asset check, two code checkers, then the game changes exactly one setting) ---- */
 let AIMODE=(()=>{try{const m=localStorage.getItem('rs-aimode');return ['light','stabilized','ultra'].includes(m)?m:'light';}catch(e){return 'light';}})();
 const AIMODE_NOTE={light:'⚡ **Light**: I answer on your device. Anything I\'m unsure of goes to the cloud helper without research. Uses the least.',
-  stabilized:'🛡 **Stabilized**: for problems and errors I answer first, then the cloud helper double-checks it with **2 mini helpers** reading different parts of the game\'s code.',
+  stabilized:'🛡 **Stabilized**: for problems and errors I answer first, then the cloud helper double-checks it with what **2 mini helpers** find in different parts of the game\'s code (they search on your device, so it\'s one cloud call).',
   ultra:'🚀 **Ultra**: every message runs a full check and asset check, **2 mini helpers** look into the code behind anything that fails, and then I change **exactly one setting** to fix it (you can undo it).'};
 const TROUBLE=new Set(['lag','jitter','white-screen','webgl','cant-host','create-failed','match-closed','lost-connection','host-left','stuck-goal','status-line','log','check','chat-restricted','saved-data']);
 const TROUBLE_RE=/error|bug|broken|crash|stuck|froze|freez|lag|glitch|not work|doesn.?t work|won.?t|can.?t|cannot|problem|wrong|fail|black screen|white screen|disconnect|non funziona|errore|bloccat|problema|lento/i;
@@ -2891,7 +2962,7 @@ function logProblems(){return (window.__rlLogBuf||[]).filter(x=>x.level==='error
 function troubleFocus(q,label){
   const topic=TOPIC_CODE[label]||'';const first=(qWords(q)+' '+topic).trim()||topic||'error';
   const second=(logProblems()?qWords(logProblems())+' '+topic:topic||first).trim();
-  return [{q:first,label:'checking the cause'},{q:second,label:'second code check'}];
+  return [{kind:'code',q:first,label:'checking the cause'},{kind:'code',q:second,label:'second code check',second:true}];
 }
 function setAiMode(m){AIMODE=m;try{localStorage.setItem('rs-aimode',m);}catch(e){}
   for(const b of document.querySelectorAll('#aiModes button'))b.classList.toggle('on',b.dataset.m===m);
@@ -2917,7 +2988,7 @@ async function askAI(question,opt){
       const m=aiSay('a',loc.text);rsaiTag(m,q);
       aiBusy=false;aiSendEl.disabled=false;
       if(AIMODE==='stabilized'&&base&&isTrouble(q,loc.label)){   // problems get a second opinion, checked in the code
-        orbMood('');return aiCloud('Please double-check that answer for my problem: '+q,{local:loc.text,focus:troubleFocus(q,loc.label),label:'Double-check:'});
+        orbMood('');return aiCloud('Please double-check that answer for my problem: '+q,{local:loc.text,tasks:troubleFocus(q,loc.label),label:'Double-check:'});
       }
       orbMood('happy');return true;
     }
@@ -2925,8 +2996,7 @@ async function askAI(question,opt){
   }
   if(!base){orbMood('');if(!opt.hideQuestion)aiSay('a','I\'m not sure about that one, and there\'s no game server here for harder questions. Try asking another way, or open the game from one of the Rocket Strike sites.');return false;}
   const o={...opt};
-  if(AIMODE==='light')o.noResearch=true;
-  else if(AIMODE==='stabilized'&&!opt.hideQuestion&&isTrouble(q,label))o.focus=troubleFocus(q,label);
+  if(AIMODE==='stabilized'&&!opt.hideQuestion)o.tasks=isTrouble(q,label)?troubleFocus(q,label):devPlan(q,label);   // light: no research
   return aiCloud(q,o);
 }
 // The cloud helper (gpt-oss on the game server). It streams its progress: the mini helpers' jobs, each one finishing,
@@ -2936,17 +3006,26 @@ async function aiCloud(q,opt){
   AI_CHAT.push({role:'user',content:q});
   aiBusy=true;aiSendEl.disabled=true;orbMood('think');
   let wait=aiDots(),crew=null,ok=false,j=null,status=0;
+  // the mini helpers do their research here on the device first (no cloud calls), while you watch them type
+  let notes=[];
+  const tasks=Array.isArray(opt.tasks)?opt.tasks.filter(t=>t&&t.q).slice(0,2):[];
+  if(tasks.length){
+    wait.remove();crew=await crewStart(tasks);const t0=performance.now();
+    notes=await Promise.all(tasks.map(async(t,i)=>{let n=null;try{n=await devResearch(t,tasks);}catch(e){}
+      await new Promise(r=>setTimeout(r,Math.max(0,1100+i*350-(performance.now()-t0))));crewTask(crew,i,!!n);return n;}));
+    notes=notes.filter(Boolean);
+  }
   try{
     const ctl=new AbortController();const to=setTimeout(()=>ctl.abort(),75000);
-    const body={messages:AI_CHAT.slice(-8),status:aiShareLog?aiStatus():'',log:aiShareLog?logText(80):'',stream:1,research:opt.noResearch?0:1,
+    const body={messages:AI_CHAT.slice(-8),status:aiShareLog?aiStatus():'',log:aiShareLog?logText(80):'',stream:1,research:0,
       lang:String(navigator.language||'en').slice(0,2).toLowerCase(),mode:opt.mode||AIMODE};
-    if(opt.focus)body.focus=opt.focus;if(opt.local)body.local=opt.local;if(opt.fixes)body.fixes=opt.fixes;
+    if(notes.length)body.notes=notes;if(opt.local)body.local=opt.local;if(opt.fixes)body.fixes=opt.fixes;
     const r=await fetch(base+'/api/assistant',{method:'POST',headers:{'content-type':'application/json'},signal:ctl.signal,body:JSON.stringify(body)});
     status=r.status;
     if(/ndjson/.test(r.headers.get('content-type')||'')&&r.body&&r.body.getReader){
       const rd=r.body.getReader(),dec=new TextDecoder();let buf='';
       const handle=async ev=>{
-        if(ev.ev==='plan'&&Array.isArray(ev.tasks)&&ev.tasks.length){wait.remove();crew=await crewStart(ev.tasks.slice(0,2));}
+        if(ev.ev==='plan'&&Array.isArray(ev.tasks)&&ev.tasks.length&&!crew){wait.remove();crew=await crewStart(ev.tasks.slice(0,2));}
         else if(ev.ev==='task'&&crew)crewTask(crew,ev.i,ev.ok);
         else if(ev.ev==='reply')j=ev;
       };
@@ -3033,7 +3112,7 @@ async function toggleOrbChat(open){
   const smooth=!reduceMotion()&&!!orbBar.animate;
   if(open){
     releaseKeys&&releaseKeys();
-    if(!aiLogEl.children.length)aiSay('a','Hi! I\'m the Rocket Strike helper 😊 Ask me anything about the game, or tap the pulse button and I\'ll run a check. For tricky questions my mini helpers research the game\'s code or look things up.');
+    if(!aiLogEl.children.length)aiSay('a','Hi! I\'m the Rocket Strike helper 😊 Ask me anything about the game, or tap the pulse button and I\'ll run a check. For tricky questions my mini helpers search the game\'s code or look things up, right on your device.');
     orbOpen=true;orbBar.hidden=false;orbTalk.hidden=false;orbEl.classList.add('open');placeChat();orbSpin();
     rsaiLoad();
     if(smooth){
@@ -3091,7 +3170,7 @@ async function crewStart(tasks){
     const web=t.kind==='web',mini=h('div','mini work away'+(web?' web':''));
     mini.innerHTML=`<div class="desk"><div class="mo"><div class="sw"></div>${MINI_FACE}</div><div class="scr"><div class="ln">${'<b></b>'.repeat(16)}</div><div class="ok">✓</div></div><div class="stand"></div><div class="kb">${'<i></i>'.repeat(8)}</div></div>`;
     for(const [i,b] of [...mini.querySelectorAll?mini.querySelectorAll('.ln b'):[]].entries())b.style.width=(38+((i*37)%55))+'%';
-    const cap=h('div','cap');cap.appendChild(h('small',null,web?'🌐 LOOKING IT UP':'💻 READING THE CODE'));cap.appendChild(document.createTextNode(String(t.label||'').slice(0,40)));
+    const cap=h('div','cap');cap.appendChild(h('small',null,web?'🌐 LOOKING IT UP':'💻 READING THE CODE'));cap.title='Runs on your device: no cloud call';cap.appendChild(document.createTextNode(String(t.label||'').slice(0,40)));
     mini.appendChild(cap);card.appendChild(mini);minis.push(mini);
   });
   aiLogEl.appendChild(card);aiLogEl.scrollTop=aiLogEl.scrollHeight;placeChat();
@@ -3118,7 +3197,7 @@ async function crewEnd(crew){
   orbPop('gulp');
   if(crew.dots)crew.dots.remove();
   const names=crew.tasks.map(t=>String(t.label||'').slice(0,40)).join(' · ');
-  const n=crew.tasks.length,summary=h('div','aimsg crewdone',`✓ ${n===1?'My mini helper':'My 2 mini helpers'} researched: ${names}`);
+  const n=crew.tasks.length,summary=h('div','aimsg crewdone',`✓ ${n===1?'My mini helper':'My 2 mini helpers'} researched on your device: ${names}`);
   crew.card.replaceWith?crew.card.replaceWith(summary):crew.card.remove();
   placeChat();
 }
@@ -3199,9 +3278,10 @@ const CHECK_CODE={'3D graphics':'WebGLRenderer getContext context lost','Frame r
   'Saving settings':'localStorage setItem','Chat':'chatRestricted suspended strikes captcha'};
 function checkFocus(items,q){
   const bad=items.filter(x=>!x.ok&&CHECK_CODE[x.k]);
-  const f=bad.slice(0,2).map(x=>({q:CHECK_CODE[x.k]+(x.k==='Game log'&&logProblems()?' '+qWords(logProblems()):''),label:'checking: '+x.k.toLowerCase()}));
-  if(q&&f.length<2)f.push({q:qWords(q)||'error',label:f.length?'second code check':'checking your problem'});
-  if(f.length===1)f.push({q:f[0].q,label:'second code check'});
+  const f=bad.slice(0,2).map(x=>({kind:'code',q:CHECK_CODE[x.k]+(x.k==='Game log'&&logProblems()?' '+qWords(logProblems()):''),label:'checking: '+x.k.toLowerCase()}));
+  if(q&&f.length<2)f.push({kind:'code',q:qWords(q)||'error',label:f.length?'second code check':'checking your problem'});
+  if(f.length===1)f.push({kind:'code',q:f[0].q,label:'second code check'});
+  if(f[1])f[1].second=true;
   return f;
 }
 async function runCheck(){
@@ -3211,7 +3291,7 @@ async function runCheck(){
   if(AIMODE==='light'||!serverBase()){aiSay('a',localDiagnosis(res.lines));orbMood('happy');return;}   // light: diagnosed on this device
   const q='I ran the Rocket Strike check. Results:\n'+res.lines.join('\n')+'\nWhat is the diagnosis, and what should I do?';
   const f=checkFocus(res.items,'');
-  const r=await aiCloud(q,{hideQuestion:true,noResearch:!f.length,focus:f.length?f:undefined,label:'Here\'s what I found:'});
+  const r=await aiCloud(q,{hideQuestion:true,tasks:f,label:'Here\'s what I found:'});
   if(!r.ok)aiSay('a',localDiagnosis(res.lines));
   orbMood(r.ok?'happy':'');
 }
@@ -3225,7 +3305,7 @@ async function runUltra(q){
   let fix='',ok=false;
   if(serverBase()){
     const text='ULTRA check.'+(q?' My problem: '+q:'')+'\nResults:\n'+res.lines.join('\n');
-    const r=await aiCloud(text,{hideQuestion:true,mode:'ultra',focus:checkFocus(res.items,q),fixes:fixes.map(f=>({id:f.id,what:f.what})),label:'Ultra diagnosis:'});
+    const r=await aiCloud(text,{hideQuestion:true,mode:'ultra',tasks:checkFocus(res.items,q),fixes:fixes.map(f=>({id:f.id,what:f.what})),label:'Ultra diagnosis:'});
     ok=r.ok;fix=r.fix;
   }
   if(!ok){aiSay('a',localDiagnosis(res.lines));fix=localFix(res,fixes);}

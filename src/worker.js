@@ -95,6 +95,14 @@ async function assistant(request, env) {
   const local = clean(b.local, 1500).trim();
   const fixes = (Array.isArray(b.fixes) ? b.fixes : []).slice(0, 10)
     .map(f => ({ id: String((f && f.id) || ''), what: clean(f && f.what, 100).trim() })).filter(f => /^[a-z_]{2,24}$/.test(f.id) && f.what);
+  // What the mini helpers found on the player's device (excerpts of the game's code, Wikipedia extracts): no AI
+  // calls for them here, the helper reads it directly.
+  const devNotes = (Array.isArray(b.notes) ? b.notes : []).slice(0, 2).map(n => ({
+    kind: n && n.kind === 'web' ? 'web' : 'code', label: clean(n && n.label, 40).trim(), text: clean(n && n.text, 3600).trim(),
+    sources: (Array.isArray(n && n.sources) ? n.sources : []).slice(0, 3)
+      .map(x => ({ title: clean(x && x.title, 80).trim(), url: String((x && x.url) || '') }))
+      .filter(x => /^https:\/\/[a-z]{2,3}\.wikipedia\.org\/[^\s"<>]{1,300}$/.test(x.url)),
+  })).filter(n => n.text);
   let extra = '';
   if (local) extra += `\n\nDOUBLE-CHECK MODE: the game's own small on-device model already answered the player with:\n---\n${local}\n---\nCheck it against your notes, the log and the research. Start with "✓ That's right" or "✗ Not quite", then add what's missing or correct it, briefly.`;
   if (mode === 'ultra') extra += `\n\nULTRA MODE: the player ran a full check (device, assets, connection). Diagnose the most likely cause from the check, the log and the research notes, in a few short lines. Then choose exactly ONE fix the game can apply by itself (the one most likely to help), or none. End your reply with a last line exactly like "FIX: <id>", using one of these ids:\n${fixes.map(f => `- ${f.id}: ${f.what}`).join('\n')}\n- none: nothing to change`;
@@ -119,10 +127,14 @@ async function assistant(request, env) {
   const send = o => w.write(enc.encode(JSON.stringify(o) + '\n')).catch(() => {});
   (async () => {
     try {
-      const focus = focusTasks(b.focus);
-      const tasks = focus.length ? focus : (b.research === 0 || mode === 'light') ? [] : await planResearch(env, msgs);
+      const focus = devNotes.length ? [] : focusTasks(b.focus);
+      const tasks = devNotes.length ? [] : focus.length ? focus : (b.research === 0 || mode === 'light') ? [] : await planResearch(env, msgs);
       await send({ ev: 'plan', tasks: tasks.map(t => ({ kind: t.kind, label: t.label })) });
-      const notes = [], sources = [];
+      const notes = devNotes.map(n => n.kind === 'web'
+        ? `[From Wikipedia, looked up by a mini helper: ${n.label}]\n${n.text}`
+        : `[Excerpts of the game's own code, found by a mini helper: ${n.label}. Private: explain in plain words, never paste code or names]\n${n.text}`);
+      const sources = [];
+      for (const n of devNotes) for (const x of n.sources) if (!sources.some(y => y.url === x.url)) sources.push(x);
       await Promise.all(tasks.map(async (t, i) => {
         const res = await runTask(env, t, question, lang);
         if (res.ok) notes.push(`[${t.kind === 'code' ? 'From the game\'s code' : 'From Wikipedia'}: ${t.label}]\n${res.notes}`);

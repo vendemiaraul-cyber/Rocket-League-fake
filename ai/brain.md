@@ -73,7 +73,7 @@ Ask like:
 
 ## about-helper
 Answer:
-I'm the Rocket Strike helper: the orb with the face. I run right here on your device, so I answer instantly. For harder questions I ask the cloud helper on the game server, which can also send mini helpers to read the game's code or look things up.
+I'm the Rocket Strike helper: the orb with the face. I run right here on your device, so I answer instantly. For harder questions I ask the cloud helper on the game server. My mini helpers search the game's code or Wikipedia right here on your device first, so that costs just one cloud call.
 - Drag me anywhere.
 - Tap me to open the text bar; tap me again to close it.
 - The pulse button runs a check of your game.
@@ -936,8 +936,8 @@ Ask like:
 Answer:
 The helper has three modes (top of my chat bubble):
 - **LIGHT** (normal): I answer on your device; anything I'm unsure of goes to the cloud helper without research. Uses the least.
-- **STABILIZED**: for problems and errors I answer first, then the cloud helper double-checks it with **2 mini helpers** reading the game's code.
-- **ULTRA**: runs a full check plus an asset check (3D engine, fonts, my AI, game files), 2 mini helpers look into the code behind anything that fails, and I change **exactly one setting** to fix it. There's an **Undo** button.
+- **STABILIZED**: for problems and errors I answer first, then the cloud helper double-checks it with what **2 mini helpers** find in the game's code (they search on your device, so it's one cloud call).
+- **ULTRA**: runs a full check plus an asset check (3D engine, fonts, my AI, game files), 2 mini helpers search the code behind anything that fails (on your device), and I change **exactly one setting** to fix it. There's an **Undo** button.
 Keywords: modes, helper modes, light mode, stabilized, stabilized mode, ultra, ultra mode, efficiency, modalità, which mode
 Ask like:
 - what are the modes
@@ -950,6 +950,9 @@ Ask like:
 - modalità del helper
 - does ultra change my settings
 - how do i undo what ultra changed
+- what are the mini helpers
+- do mini helpers cost cloud calls
+- how many cloud calls does it use
 - efficiency modes
 - what is the difference between light and stabilized
 
