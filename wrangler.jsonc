@@ -1,0 +1,22 @@
+{
+  // Rocket Strike: static game + multiplayer server on Cloudflare Workers.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "rocket-strike",
+  "main": "src/worker.js",
+  "compatibility_date": "2025-06-01",
+  // Serves public/index.html (the game). Requests that aren't files (/ws, /api/health) go to the Worker.
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS"
+  },
+  // One Durable Object per room: "lobby" holds the server list, each hosted match gets its own.
+  "durable_objects": {
+    "bindings": [
+      { "name": "ROOMS", "class_name": "GameRoom" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["GameRoom"] }
+  ],
+  "observability": { "enabled": true }
+}
