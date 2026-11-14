@@ -262,6 +262,10 @@ body.touch #playersBtn{transform:translateX(calc(-50% - 30px))}
 .hdot{width:8px;height:8px;border-radius:50%;background:#7cc6ff;flex:none;box-shadow:0 0 6px currentColor}
 .srv small.pf{color:#8fd0ff;opacity:.85}
 .code.dim{color:#8ea3c9;letter-spacing:.06em;font-size:11px}
+.srvpick{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:#b8c6e6;font-weight:600;border-top:1px solid rgba(255,255,255,.1);padding-top:8px;min-width:0}
+.srvpick span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.srvpick b{color:#fff}
+#srvIn{font:600 14px 'Rajdhani',system-ui,sans-serif;color:#fff;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.3);border-radius:8px;padding:.5em .6em;outline:none;width:100%;user-select:text;-webkit-user-select:text}
+#srvIn:focus{border-color:#7cc6ff}
 #err{position:fixed;inset:0;display:none;align-items:center;justify-content:center;color:#fff;font:15px/1.5 system-ui,sans-serif;text-align:center;padding:2em;background:rgba(3,4,10,.92);z-index:30}
 </style>
 </head>
@@ -312,6 +316,7 @@ body.touch #playersBtn{transform:translateX(calc(-50% - 30px))}
     <div class="mpstatus"><span class="spin" id="mpSpin"></span><span id="mpStatusText">Connecting…</span></div>
     <div id="srvList"></div>
     <div class="btnrow"><button class="btn sm primary" id="hostBtn" disabled>HOST SERVER</button><button class="btn sm ghost" id="mpBack">BACK</button></div>
+    <div class="srvpick"><span>Game server: <b id="srvName">this site</b></span><button class="linkbtn" type="button" id="srvChange">CHANGE</button></div>
   </div>
 </div>
 <div id="over" class="screen">
@@ -1476,9 +1481,9 @@ function renderHosting(){
   const on=NET.netState==='ready',srv=HOSTING.server;
   let txt=HOSTING.name?`Running on ${HOSTING.name}`:'Checking where the game is running…';
   if(HOSTING.name){
-    if(srv&&on)txt+=srv.sameSite?' · game server online':` · game server on ${srv.name}`;
+    if(srv&&on)txt+=srv.sameSite?(srv.via==='pages'?' · linked to a Worker · game server online':' · game server online'):` · game server on ${srv.name}`;
     else if(NET.netState==='reconnecting')txt+=' · reconnecting to the game server';
-    else if(NET.netState==='off')txt+=' · no game server here, bot only';
+    else if(NET.netState==='off')txt+=HOSTING.notLinked?' · game server not linked yet':' · no game server here, bot only';
   }
   const col=on?'#59e09a':NET.netState==='off'?'#ff9a4a':'#7cc6ff';
   for(const [t,d] of [['mpHostText','mpHostDot'],['menuHostText','menuHostDot']]){const el=document.getElementById(t),dot=document.getElementById(d);
@@ -1489,8 +1494,12 @@ function renderHosting(){
 // The page detects the server by asking /api/health. When the Worker serves this page, that's the
 // same site. To use a Worker on another address, set GAME_SERVER (or open the page with ?server=URL).
 const GAME_SERVER='';
+const SERVER_RE=/^https?:\/\/[a-z0-9.-]+(:\d+)?\/?$/i;
+const SERVER_KEY='rs-server';
+function savedServer(){try{const v=localStorage.getItem(SERVER_KEY)||'';return SERVER_RE.test(v)?v.replace(/\/$/,''):'';}catch(e){return '';}}
 function serverBase(){
-  try{const q=new URLSearchParams(location.search).get('server');if(q&&/^https?:\/\/[a-z0-9.-]+(:\d+)?\/?$/i.test(q))return q.replace(/\/$/,'');}catch(e){}
+  try{const q=new URLSearchParams(location.search).get('server');if(q&&SERVER_RE.test(q))return q.replace(/\/$/,'');}catch(e){}
+  const mine=savedServer();if(mine)return mine;
   if(GAME_SERVER)return GAME_SERVER.replace(/\/$/,'');
   return /^https?:$/.test(location.protocol)?location.origin:'';
 }
@@ -1499,8 +1508,10 @@ async function detectServer(){
   try{
     const ctl=new AbortController();const to=setTimeout(()=>ctl.abort(),5000);
     const r=await fetch(base+'/api/health',{cache:'no-store',signal:ctl.signal});clearTimeout(to);
-    if(!r.ok)return false;const j=await r.json();if(!(j&&j.ok&&j.platform==='cloudflare'))return false;
-    HOSTING.server={name:'Cloudflare '+(j.runtime==='workers'||!j.runtime?'Workers':j.runtime),sameSite:base===location.origin};return true;
+    let j=null;try{j=await r.json();}catch(e){}
+    if(j&&j.reason==='not_linked'){HOSTING.notLinked=true;return false;}
+    if(!r.ok||!(j&&j.ok&&j.platform==='cloudflare'))return false;HOSTING.notLinked=false;
+    HOSTING.server={name:'Cloudflare '+(j.runtime==='workers'||!j.runtime?'Workers':j.runtime),sameSite:base===location.origin,via:j.via||''};return true;
   }catch(e){return false;}
 }
 const wsURL=room=>serverBase().replace(/^http/,'ws')+'/ws?room='+encodeURIComponent(room);
@@ -1577,6 +1588,46 @@ async function connectLobby(){
 }
 function retryLobby(){const n=Math.min(5,(NET.lobbyTries=(NET.lobbyTries||0)+1));setTimeout(connectLobby,Math.min(15000,500*2**n));}
 const openRoom=code=>new RoomConn(code).open();
+/* ---- choosing a game server ---- */
+function serverLabel(){
+  const b=serverBase();if(!b)return 'none';
+  try{const u=new URL(b);return u.origin===location.origin?'this site':u.host;}catch(e){return b;}
+}
+function renderServerPick(){const el=document.getElementById('srvName');if(el)el.textContent=serverLabel();}
+async function useServer(url){
+  try{url?localStorage.setItem(SERVER_KEY,url):localStorage.removeItem(SERVER_KEY);}catch(e){}
+  logEv('info','Game server set to '+(url||'this site'));
+  if(NET.room){const r=NET.room;NET.room=null;r.leave();}
+  NET.servers=[];NET.lobbyTries=0;HOSTING.server=null;HOSTING.notLinked=false;renderServerPick();
+  initNet();
+}
+function openServerPicker(){
+  openModal(box=>{
+    box.append(h('h3',null,'Game server'),h('p','muted','Matches run through a Rocket Strike server on Cloudflare. Leave this on "This site" unless someone gave you the address of their server. Your choice is saved only on this device.'));
+    const inp=h('input');inp.id='srvIn';inp.placeholder='https://rocket-strike.example.workers.dev';inp.autocomplete='off';inp.spellcheck=false;inp.value=savedServer();
+    inp.addEventListener('keydown',e=>e.stopPropagation());
+    const note=h('p','muted','');
+    const row=h('div','btnrow');
+    const test=h('button','btn primary','USE THIS SERVER');
+    const here=h('button','btn ghost','THIS SITE');
+    const cancel=h('button','btn ghost','CANCEL');cancel.addEventListener('click',closeModal);
+    here.addEventListener('click',()=>{closeModal();useServer('');toast('Using this site\'s game server.');});
+    test.addEventListener('click',async()=>{
+      let v=inp.value.trim();if(v&&!/^https?:\/\//i.test(v))v='https://'+v;v=v.replace(/\/+$/,'');
+      if(!SERVER_RE.test(v)){note.textContent='Enter an address like https://rocket-strike.example.workers.dev';return;}
+      note.textContent='Checking '+v+'…';test.disabled=true;
+      let ok=false;try{const ctl=new AbortController();const to=setTimeout(()=>ctl.abort(),5000);
+        const r=await fetch(v+'/api/health',{cache:'no-store',signal:ctl.signal});clearTimeout(to);const j=await r.json();ok=!!(j&&j.ok&&j.platform==='cloudflare');}catch(e){}
+      test.disabled=false;
+      if(!ok){note.textContent='No Rocket Strike server answered at that address. Check it and try again.';return;}
+      closeModal();useServer(v);toast('Connected to '+new URL(v).host);
+    });
+    row.append(test,here,cancel);box.append(inp,note,row);
+  });
+}
+document.getElementById('srvChange').addEventListener('click',openServerPicker);
+renderServerPick();
+
 // keep a hosted server visible while its tab is in the background (the game loop pauses there)
 setInterval(()=>{if(document.hidden&&LOCAL.mode==='online'&&NET.gr){try{netSend();}catch(e){}}},500);
 function setOnline(ok){NET.netState=ok?'ready':'off';document.getElementById('hostBtn').disabled=!ok;renderServers();renderHosting();}
@@ -1595,7 +1646,8 @@ function renderServers(){
 function updateMpStatus(){
   const st=document.getElementById('mpStatusText'),sp=document.getElementById('mpSpin');let txt,spin=false;const n=NET.servers.length;
   if(NET.netState==='off')txt=HOSTING.id==='netlify'||HOSTING.id==='vercel'||HOSTING.id==='github'?`${HOSTING.name} can't run the game server. Point this page at the Cloudflare Worker to play online; the bot works here.`
-    :HOSTING.id==='cloudflare'&&/pages/i.test(HOSTING.name)?'Cloudflare Pages serves the game but not the server. Deploy the repo as a Worker to play online; the bot works here.'
+    :HOSTING.notLinked?'This Cloudflare Pages site isn\'t linked to a game server yet. Its owner can link one in the Cloudflare dashboard, or pick a server below. The bot works here.'
+    :HOSTING.id==='cloudflare'&&/pages/i.test(HOSTING.name)?'Cloudflare Pages serves the game but not the server. Link a Worker to this site, or pick a server below. The bot works here.'
     :'Online play needs the Rocket Strike server on Cloudflare. You can still play against the bot.';
   else if(NET.netState==='reconnecting'){txt='Reconnecting to the server…';spin=true;}
   else if(NET.netState!=='ready'){txt='Looking for the game server…';spin=true;}
