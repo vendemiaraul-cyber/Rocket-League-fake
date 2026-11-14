@@ -1464,7 +1464,7 @@ function updateBallDisplay(dt){
 const tripTime=otherRt=>((NET.gr&&NET.gr.rtt||60)+(otherRt>0?otherRt:60))/2000;
 // run the ball forward by t seconds with the real physics (bounces included)
 function advanceBall(t){t=clamp(t,0,0.3);if(t<=0)return;const n=Math.ceil(t*120),h=t/n;for(let i=0;i<n;i++)stepBall(h);}
-function reportHit(aerial){NET.hitN++;NET.hit={n:NET.hitN,b:encodeBall(),a:aerial?1:0};NET.graceUntil=performance.now()+1200;}
+function reportHit(aerial){NET.hitN++;NET.hit={n:NET.hitN,b:encodeBall(),a:aerial?1:0,t:Math.round(performance.now())};NET.graceUntil=performance.now()+1200;}
 const physCars=()=>{const a=[];if(me.active)a.push(me);if(isAuth()&&botCar.active)a.push(botCar);return a;};
 const BAD_CH=new RegExp('[\\u0000-\\u001f\\u007f-\\u009f\\u00ad\\u061c\\u180e\\u200b-\\u200f\\u2028-\\u202e\\u2060-\\u206f\\ufeff\\ue000-\\uf8ff]','g');
 const cleanText=(s,n)=>String(s==null?'':s).replace(BAD_CH,'').slice(0,n).trim();
@@ -1520,12 +1520,15 @@ function hostTick(dt){
       if(!r||BALL.scored||M.ph==='countdown')continue;
       const b=h.b.map(Number);if(b.length<6||!b.every(isFinite))continue;
       // the touch happened a trip-time ago on their screen: start from it and run the ball forward to now
-      const trip=(Date.now()-p.updatedAt)/1000+tripTime(+p.presence.rt||0);
+      // time since the touch: from touch to their send (their clock), the trip here, and since it arrived
+      const held=typeof h.t==='number'&&typeof p.presence.ts==='number'?clamp((p.presence.ts-h.t)/1000,0,0.2):0;
+      const trip=held+(Date.now()-p.updatedAt)/1000+tripTime(+p.presence.rt||0);
       tv2.copy(BALL.pos).add(BALL.off);cTmp.copy(BALL.pos);BALL.tmpV=(BALL.tmpV||V()).copy(BALL.vel);
       BALL.pos.set(b[0],Math.max(BALL_R,b[1]),b[2]);BALL.vel.set(b[3],b[4],b[5]);advanceBall(trip);
-      // Two touches at once (say at kickoff): if the ball was already hit here in the time their
-      // touch was travelling and the two now disagree a lot, the earlier touch (this one) wins.
-      if(BALL.touchAt&&performance.now()-BALL.touchAt<trip*1000+250&&cTmp.distanceTo(BALL.pos)>6){BALL.pos.copy(cTmp);BALL.vel.copy(BALL.tmpV);continue;}
+      // Their touch wins, unless the ball had already been hit here before their touch and the news
+      // of that hit couldn't have reached them yet: then they hit a ball that was no longer there.
+      const since=BALL.touchAt?(performance.now()-BALL.touchAt)/1000:99;
+      if(since>trip&&since<2*trip+0.05&&cTmp.distanceTo(BALL.pos)>6){BALL.pos.copy(cTmp);BALL.vel.copy(BALL.tmpV);continue;}
       if(tv2.distanceTo(BALL.pos)<25)BALL.off.subVectors(tv2,BALL.pos);else BALL.off.set(0,0,0);   // glide to it rather than teleport
       GAME.lastTouch={team:r[1],name:peerName(p),aerial:!!h.a};BALL.flare=0.6;
     }
@@ -1638,7 +1641,7 @@ class RoomConn{
         else if(m.t==='p'&&typeof m.peer==='string'){let e=this.map.get(m.peer);if(!e){e={fresh:false};this.map.set(m.peer,e);}
           e.presence=(m.d&&typeof m.d==='object')?m.d:{};e.updatedAt=Date.now();e.recvAt=performance.now();this.cache=null;
           if(e.fresh){e.fresh=false;this.emit([m.peer],[]);}else this.emit([],[],m.peer);}
-        else if(m.t==='pong'){const c=Number(m.c);if(c)this.rtt=Math.max(0,Date.now()-c);}
+        else if(m.t==='pong'){const c=Number(m.c);if(c){(this.rtts=this.rtts||[]).push(Math.max(0,Date.now()-c));if(this.rtts.length>5)this.rtts.shift();this.rtt=Math.min(...this.rtts);}}
       };
       const down=why=>{if(!this.ready){clearTimeout(to);if(!this.closed){this.closed=true;reject(new Error(why));}return;}
         if(this.closed)return;this.closed=true;clearInterval(this.pingTimer);clearTimeout(this.sendTimer);for(const f of this.errFns)try{f({code:why});}catch(e){}};
