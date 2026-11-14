@@ -4,7 +4,7 @@
   "name": "rocket-strike",
   "main": "src/worker.js",
   "compatibility_date": "2025-06-01",
-  // Serves public/index.html (the game). Requests that aren't files (/ws, /api/health) go to the Worker.
+  // Serves public/ (index.html is the main page, play.html the game). Requests that aren't files (/ws, /api/health) go to the Worker.
   "assets": {
     "directory": "./public",
     "binding": "ASSETS"

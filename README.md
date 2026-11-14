@@ -7,7 +7,8 @@ Built with three.js; multiplayer runs on Cloudflare Workers with Durable Objects
 
 | Path | What it is |
 | --- | --- |
-| `public/index.html` | The whole game (one file). Plays against the bot anywhere; online play turns on when it finds the server. |
+| `public/index.html` | The main page: what the game is, how to play with friends online and through invite links, and the PLAY button. Shows whether the game server is online and how many matches are open. |
+| `public/play.html` | The whole game (one file). Plays against the bot anywhere; online play turns on when it finds the server. |
 | `src/worker.js` | The multiplayer server: serves the game, answers `/api/health`, relays players through rooms at `/ws`, and runs each match. |
 | `src/match.js`, `src/physics.js` | The match the server runs (lobby, vote, kickoff, ball, bot, goals, clock) and its physics, copied from the game. |
 | `wrangler.jsonc` | Cloudflare config: static assets, the `GameRoom` Durable Object and its migration. |
@@ -25,6 +26,8 @@ Built with three.js; multiplayer runs on Cloudflare Workers with Durable Objects
 - **Away players get an autopilot.** If a player's tab is hidden, goes quiet for 1.5 s, or they leave mid-match, the server drives their car with the bot's AI (shown as "NAME · AUTO") so it never stands frozen in the way. When they come back they take over from where the car is.
 - Players drive their own car and send where it is; the server lets those cars touch its ball. On each player's screen the ball is the server's ball run forward by the measured delay and replayed with their own car's recent path, so their touches show right away and match what the server decides. Other cars and the bot are shown a moment in the past and glide between updates.
 - With an older Worker that doesn't run matches (`/api/health` without `"match": "server"`), the host's browser runs the match as before.
+- **Invite links:** in the lobby, COPY INVITE LINK gives `play.html?join=<code>` (plus `&server=` when the server isn't the site itself). Opening it joins that match as soon as the server list loads.
+- In the lobby everyone's car is parked next to yours with their name, and the host is marked HOST (also on their name tag during the match).
 - No accounts: anyone who opens the link can host or join. Names, strikes and suspensions are stored in each player's browser.
 
 ## Deploy on Cloudflare
