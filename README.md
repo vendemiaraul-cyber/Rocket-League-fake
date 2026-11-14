@@ -52,11 +52,21 @@ The game then shows "Running on Cloudflare Pages · linked to a Worker · game s
 
 ### Netlify, GitHub Pages
 
-These serve the game page (`netlify.toml` points Netlify at `public/`; the root `index.html` forwards to `public/`) but can't run or link the server. Players can still join a server through **MULTIPLAYER → Game server → CHANGE** by pasting a server's address.
+These serve the game page (`netlify.toml` points Netlify at `public/`; the root `index.html` forwards to `public/`) but can't run the server themselves.
+
+**Connect a Netlify site to your Worker so players don't paste anything:**
+
+1. In Netlify, open your project → **Project configuration → Environment variables → Add a variable**.
+2. Key `GAME_SERVER`, value your Worker's address (for example `https://my-game.example.workers.dev`).
+3. **Deploys → Trigger deploy → Deploy project**.
+
+The build step (`scripts/site-server.mjs`) writes `public/server.json`, and the game uses that server by default. The address stays in your Netlify settings, not in the code. The game then shows "Running on Netlify · game server on Cloudflare Workers".
+
+Without it, players can still join a server through **MULTIPLAYER → Game server → CHANGE** by pasting a server's address.
 
 ## Using the server from another site
 
-Players can pick a server in **MULTIPLAYER → Game server → CHANGE** (saved only on their device). You can also open the page with `?server=https://<your-worker-address>`, or set `GAME_SERVER` in `public/index.html` for your own copy.
+Which server a player uses, first match wins: `?server=https://<worker-address>` in the page link, then a server they picked in **MULTIPLAYER → Game server → CHANGE** (saved only on their device), then the site's `server.json` (from the host's `GAME_SERVER` setting, above), then `GAME_SERVER` in `public/index.html`, then the site itself.
 
 ## Notes
 
