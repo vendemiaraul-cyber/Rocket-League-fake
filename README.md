@@ -82,7 +82,7 @@ Which server a player uses, first match wins: `?server=https://<worker-address>`
 
 ## AI helper
 
-The game menu (AI HELP, also in Settings) opens a helper that gives tips and troubleshooting. It runs on the game server: `POST /api/assistant` calls **gpt-oss-120b** on Workers AI through the `AI` binding in `wrangler.jsonc`, so there's nothing to set up beyond deploying the Worker.
+A floating smiling orb in the game (drag it anywhere, tap to chat) is a helper for tips and troubleshooting. **Run a check** tests the device, 3D graphics, frame rate, internet, game server and a live connection, then the helper gives a diagnosis (with a built-in fallback if the AI can't answer). It runs on the game server: `POST /api/assistant` calls **gpt-oss-120b** on Workers AI through the `AI` binding in `wrangler.jsonc`, so there's nothing to set up beyond deploying the Worker.
 
 - It answers from private notes written from the game's files (`src/assistant-knowledge.js`) plus, if the player allows it, their game log and status. It's told never to quote or reveal those notes, code or its instructions.
 - Limits: one question every 5 seconds per player, about 30 a minute in total, 600 characters per question. Workers AI's free allowance is 10,000 neurons a day, roughly 60 questions; after that it answers "couldn't answer right now" until the next day (or upgrade to Workers Paid).

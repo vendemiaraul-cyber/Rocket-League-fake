@@ -198,17 +198,49 @@ body.spect .ingame .boost,body.spect .camtag{display:none}
 .linklist a,.linklist code{font-size:11.5px;color:#9fd0ff;word-break:break-all;font-family:ui-monospace,Menlo,monospace}
 #fpsMeter{position:fixed;left:8px;top:8px;z-index:30;font:700 11px ui-monospace,Menlo,monospace;color:#9ff0c4;background:rgba(0,0,0,.45);padding:3px 7px;border-radius:6px;pointer-events:none}
 #fpsMeter[hidden]{display:none}
-#aiLog{display:flex;flex-direction:column;gap:8px;max-height:46vh;overflow:auto;padding:2px}
-.aimsg{padding:9px 11px;border-radius:12px;line-height:1.45;font-size:13.5px;max-width:92%;user-select:text;-webkit-user-select:text}
+#setBtn{align-self:center}
+/* ---- AI helper orb ---- */
+#orb{position:fixed;z-index:36;width:62px;height:62px;left:0;top:0;touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none;transition:opacity .2s,transform .2s}
+#orb.dragging{cursor:grabbing}
+#orb .body{position:absolute;inset:0;border-radius:50%;animation:orbBob 3.2s ease-in-out infinite}
+#orb .glow{position:absolute;inset:-14px;border-radius:50%;background:radial-gradient(circle,rgba(110,190,255,.55),rgba(110,190,255,0) 68%);animation:orbGlow 2.4s ease-in-out infinite}
+#orb svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+#orb .eye{transform-origin:center;transform-box:fill-box;animation:orbBlink 4.6s infinite}
+#orb .ring{opacity:0;transform-origin:31px 31px}
+#orb.think .ring{opacity:1;animation:orbSpin 1s linear infinite}
+#orb.think .pupils{animation:orbLook 1.2s ease-in-out infinite}
+#orb.open .body{animation-duration:1.6s}
+#orb.happy .mouth{d:path("M20 37 Q31 49 42 37")}
+body.driving #orb:not(.open){opacity:.55;transform:scale(.82)}
+@keyframes orbBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+@keyframes orbGlow{0%,100%{opacity:.55;transform:scale(.92)}50%{opacity:1;transform:scale(1.06)}}
+@keyframes orbBlink{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.1)}}
+@keyframes orbSpin{to{transform:rotate(360deg)}}
+@keyframes orbLook{0%,100%{transform:translateX(0)}30%{transform:translateX(-2.5px)}70%{transform:translateX(2.5px)}}
+@media (prefers-reduced-motion:reduce){#orb .body,#orb .glow,#orb .eye,#orb.think .ring,#orb.think .pupils{animation:none}}
+#orbChat{position:fixed;z-index:35;width:min(310px,calc(100vw - 20px));max-height:min(430px,calc(100vh - 20px));display:flex;flex-direction:column;
+  background:rgba(10,14,32,.97);border:1px solid rgba(124,198,255,.35);border-radius:16px;box-shadow:0 18px 50px rgba(0,0,0,.55);overflow:hidden;color:#e8eefc;font-size:13px}
+#orbChat[hidden]{display:none}
+#orbChat .oc-head{display:flex;align-items:center;gap:8px;padding:9px 10px 8px 12px;border-bottom:1px solid rgba(255,255,255,.1)}
+#orbChat .oc-head b{font:400 14px 'Russo One',Impact,sans-serif;letter-spacing:.05em;flex:1}
+#orbChat .oc-head button{background:none;border:0;color:#9fb6e0;font-size:20px;line-height:1;cursor:pointer;padding:2px 6px}
+#aiLog{flex:1;min-height:90px;overflow:auto;display:flex;flex-direction:column;gap:7px;padding:10px}
+.aimsg{padding:8px 10px;border-radius:12px;line-height:1.42;max-width:92%;user-select:text;-webkit-user-select:text}
 .aimsg.u{align-self:flex-end;background:#2f6bff;color:#fff;border-bottom-right-radius:4px}
 .aimsg.a{align-self:flex-start;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-bottom-left-radius:4px}
-.aimsg.a ul{margin:4px 0;padding-left:1.2em}.aimsg.a p{margin:0 0 6px}.aimsg.a p:last-child{margin:0}
+.aimsg.a ul{margin:4px 0;padding-left:1.15em}.aimsg.a p{margin:0 0 5px}.aimsg.a p:last-child{margin:0}
 .aimsg.wait{opacity:.7;font-style:italic}
-#aiIn{font:600 14px 'Rajdhani',system-ui,sans-serif;color:#fff;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.3);border-radius:8px;padding:.5em .6em;outline:none;resize:none;user-select:text;-webkit-user-select:text;min-width:0;flex:1}
+.aimsg.test{align-self:stretch;max-width:none;background:rgba(89,224,154,.07);border:1px solid rgba(89,224,154,.25);font:600 12px ui-monospace,Menlo,monospace;white-space:pre-wrap}
+.aichips{display:flex;flex-wrap:wrap;gap:5px;padding:0 10px 8px}
+.aichips button{background:rgba(124,198,255,.1);border:1px solid rgba(124,198,255,.35);color:#cfe6ff;border-radius:999px;padding:4px 9px;font:700 11px 'Rajdhani',sans-serif;letter-spacing:.05em;cursor:pointer}
+.aichips button.check{background:rgba(89,224,154,.14);border-color:rgba(89,224,154,.45);color:#b9f5d6}
+.oc-in{display:flex;gap:6px;padding:0 10px 6px}
+#aiIn{font:600 14px 'Rajdhani',system-ui,sans-serif;color:#fff;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.3);border-radius:8px;padding:.45em .6em;outline:none;resize:none;user-select:text;-webkit-user-select:text;min-width:0;flex:1}
 #aiIn:focus{border-color:#7cc6ff}
-.aichips{display:flex;flex-wrap:wrap;gap:6px}
-.aichips button{background:rgba(124,198,255,.1);border:1px solid rgba(124,198,255,.35);color:#cfe6ff;border-radius:999px;padding:5px 10px;font:700 11px 'Rajdhani',sans-serif;letter-spacing:.06em;cursor:pointer}
-#setBtn,#aiBtn{align-self:center}
+.oc-in button{background:#2f6bff;color:#fff;border:0;border-radius:8px;font:400 12px 'Russo One',Impact,sans-serif;letter-spacing:.08em;padding:0 12px;cursor:pointer}
+.oc-in button:disabled{opacity:.5}
+.oc-share{display:flex;gap:6px;align-items:center;padding:0 10px 10px;font-size:11px;color:#9fb6e0;cursor:pointer}
+.oc-share input{accent-color:#4aa8ff;width:14px;height:14px;margin:0}
 .menulinks{display:flex;justify-content:center;gap:18px;align-items:center}.menulinks a.linkbtn{text-decoration:none}
 .mpstatus{display:flex;align-items:center;gap:8px;font-weight:600;font-size:13px;color:#cfdcf6;line-height:1.3}
 .spin{width:12px;height:12px;border-radius:50%;border:2px solid rgba(255,255,255,.25);border-top-color:#7cc6ff;animation:spin .8s linear infinite;flex:none}
@@ -350,13 +382,32 @@ body.touch #playersBtn{transform:translateX(calc(-50% - 30px))}
     <div class="lbl">PAINT · <b id="colName">COBALT</b></div>
     <div class="swatches" id="swatches"></div>
     <div class="btnrow"><button class="btn primary" id="startBtn">PLAY VS BOT</button><button class="btn ghost" id="mpBtn">MULTIPLAYER</button></div>
-    <div class="btnrow"><button class="btn ghost sm" id="setBtn" type="button">SETTINGS</button><button class="btn ghost sm" id="aiBtn" type="button">AI HELP</button></div>
+    <button class="btn ghost sm" id="setBtn" type="button">SETTINGS</button>
     <div class="menulinks"><a class="linkbtn" id="homeLink" href="./">&larr; HOME</a><button class="linkbtn logbtn" type="button">ERROR LOG <span class="logcount" hidden></span></button></div>
     <div class="hosted small"><span class="hdot" id="menuHostDot"></span><span id="menuHostText">Checking where the game is running…</span></div>
     <div class="keys" id="keysHint">WASD drive · SPACE jump, again to flip · SHIFT boost · Q/E air roll · C camera · ENTER chat</div>
   </div>
 </div>
 <div id="fpsMeter" hidden>-- FPS</div>
+<div id="orb" role="button" tabindex="0" aria-label="Rocket Strike helper: tap to chat, drag to move">
+  <div class="glow"></div>
+  <div class="body"><svg viewBox="0 0 62 62" aria-hidden="true">
+    <defs><radialGradient id="orbG" cx="38%" cy="32%" r="70%"><stop offset="0" stop-color="#e9f6ff"/><stop offset=".35" stop-color="#7cc6ff"/><stop offset=".8" stop-color="#2f6bff"/><stop offset="1" stop-color="#1b3fb8"/></radialGradient></defs>
+    <circle class="ring" cx="31" cy="31" r="29.5" fill="none" stroke="#ffb066" stroke-width="2.5" stroke-dasharray="22 70" stroke-linecap="round"/>
+    <circle cx="31" cy="31" r="26" fill="url(#orbG)" stroke="rgba(255,255,255,.7)" stroke-width="1.5"/>
+    <ellipse cx="23" cy="18" rx="8" ry="4.5" fill="#fff" opacity=".55" transform="rotate(-25 23 18)"/>
+    <g class="pupils"><ellipse class="eye" cx="23" cy="28" rx="3.2" ry="4.2" fill="#0b1636"/><ellipse class="eye" cx="39" cy="28" rx="3.2" ry="4.2" fill="#0b1636"/></g>
+    <circle cx="17" cy="35" r="3" fill="#ff8fb0" opacity=".45"/><circle cx="45" cy="35" r="3" fill="#ff8fb0" opacity=".45"/>
+    <path class="mouth" d="M22 37 Q31 45 40 37" fill="none" stroke="#0b1636" stroke-width="2.6" stroke-linecap="round"/>
+  </svg></div>
+</div>
+<div id="orbChat" hidden role="dialog" aria-label="Rocket Strike helper">
+  <div class="oc-head"><b>RS HELPER</b><button type="button" id="orbClose" aria-label="Close">&times;</button></div>
+  <div id="aiLog"></div>
+  <div class="aichips" id="aiChips"></div>
+  <div class="oc-in"><textarea id="aiIn" rows="1" maxlength="600" placeholder="Ask me anything…"></textarea><button type="button" id="aiSend">ASK</button></div>
+  <label class="oc-share"><input type="checkbox" id="aiShare" checked><span>Share my game log so I can find the exact problem</span></label>
+</div>
 <div id="mp" class="screen">
   <div class="card mpcard">
     <div class="mphead"><h2>MULTIPLAYER</h2><span class="lbl">SERVER LIST</span></div>
@@ -2597,7 +2648,6 @@ function openSettings(){
     const a=h('a','discordbtn');a.href=DISCORD_URL;a.target='_blank';a.rel='noopener noreferrer';a.innerHTML=DISCORD_SVG;a.appendChild(document.createTextNode('Join our Discord server!'));
     com.appendChild(a);
     box.appendChild(com);
-    const aiB=h('button','btn sm ghost','AI HELP: TIPS AND TROUBLESHOOTING');aiB.type='button';aiB.addEventListener('click',openAI);box.appendChild(aiB);
     // graphics
     const g=section('GRAPHICS');
     g.appendChild(row('Quality',seg([['low','LOW'],['medium','MEDIUM'],['high','HIGH']],GFX.q,v=>{GFX.q=v;saveGfx();applyGfx();})));
@@ -2677,45 +2727,133 @@ function aiFormat(text){
   if(list)html+='<ul>'+list.join('')+'</ul>';
   return html||'<p>…</p>';
 }
-async function askAI(question,logEl,sendBtn){
-  const q=cleanText(question,600);if(q.length<2||aiBusy)return;
+async function askAI(question,opt){
+  opt=opt||{};const q=String(question||'').replace(/[\u0000-\u0008\u000b-\u001f]/g,' ').trim().slice(0,opt.hideQuestion?1400:600);if(q.length<2||aiBusy)return false;
+  if(orbChat.hidden)toggleOrbChat(true);
+  if(!opt.hideQuestion)aiSay('u',q,true);
+  AI_CHAT.push({role:'user',content:q});
   const base=serverBase();
-  const add=(cls,html)=>{const d=h('div','aimsg '+cls);d.innerHTML=html;logEl.appendChild(d);logEl.scrollTop=logEl.scrollHeight;return d;};
-  add('u',aiFormat(q).replace(/<\/?(ul|li|b)>/g,''));AI_CHAT.push({role:'user',content:q});
-  if(!base){add('a',aiFormat('There\'s no game server here, so the AI helper can\'t answer. Open the game from one of the Rocket Strike sites.'));return;}
-  aiBusy=true;if(sendBtn)sendBtn.disabled=true;const wait=add('a wait','<p>Thinking…</p>');
+  if(!base){AI_CHAT.pop();if(!opt.hideQuestion)aiSay('a','There\'s no game server here, so I can\'t answer. Open the game from one of the Rocket Strike sites.');return false;}
+  aiBusy=true;aiSendEl.disabled=true;orbMood('think');const wait=aiSay('a wait','Thinking…');
+  let ok=false;
   try{
     const ctl=new AbortController();const to=setTimeout(()=>ctl.abort(),45000);
     const r=await fetch(base+'/api/assistant',{method:'POST',headers:{'content-type':'application/json'},signal:ctl.signal,
       body:JSON.stringify({messages:AI_CHAT.slice(-8),status:aiShareLog?aiStatus():'',log:aiShareLog?logText(80):''})});
     clearTimeout(to);let j=null;try{j=await r.json();}catch(e){}
     wait.remove();
-    if(r.ok&&j&&j.ok&&j.reply){AI_CHAT.push({role:'assistant',content:j.reply});add('a',aiFormat(j.reply));}
+    if(r.ok&&j&&j.ok&&j.reply){AI_CHAT.push({role:'assistant',content:j.reply});aiSay('a',(opt.label?'**'+opt.label+'**\n':'')+j.reply);ok=true;}
     else{const why=j&&j.reason;AI_CHAT.pop();
-      add('a',aiFormat(why==='not_set_up'||r.status===404?'The AI helper isn\'t set up on this game server yet.':why==='slow_down'?`One moment: you can ask again in ${j.wait||5} s.`:
-        why==='busy'?'Lots of questions right now. Try again in a minute.':'The AI helper couldn\'t answer right now. Try again in a bit.'));}
-  }catch(e){wait.remove();AI_CHAT.pop();add('a',aiFormat('Couldn\'t reach the AI helper. Check your connection and try again.'));}
-  aiBusy=false;if(sendBtn)sendBtn.disabled=false;
+      if(!opt.hideQuestion)aiSay('a',why==='not_set_up'||r.status===404?'The AI helper isn\'t set up on this game server yet.':why==='slow_down'?`One moment: you can ask again in ${j.wait||5} s.`:
+        why==='busy'?'Lots of questions right now. Try again in a minute.':'I couldn\'t answer right now. Try again in a bit.');}
+  }catch(e){wait.remove();AI_CHAT.pop();if(!opt.hideQuestion)aiSay('a','I couldn\'t reach the helper. Check your connection and try again.');}
+  aiBusy=false;aiSendEl.disabled=false;orbMood(ok?'happy':'');
+  return ok;
 }
-function openAI(){
-  openModal(box=>{
-    box.append(h('h3',null,'AI help'),h('p','muted','Ask for tips or help with a problem. Runs on the game server with gpt-oss-120b. AI can make mistakes.'));
-    const logEl=h('div');logEl.id='aiLog';
-    if(!AI_CHAT.length){const d=h('div','aimsg a');d.innerHTML=aiFormat('Hi! I can give you tips and help fix problems with Rocket Strike. What do you need?');logEl.appendChild(d);}
-    else for(const m of AI_CHAT){const d=h('div','aimsg '+(m.role==='user'?'u':'a'));d.innerHTML=aiFormat(m.content);logEl.appendChild(d);}
-    const chips=h('div','aichips');
-    for(const c of ['How do I flip?','Tips to score more','The game lags','I can\'t join a server','Why is my chat restricted?']){const b=h('button',null,c);b.type='button';b.addEventListener('click',()=>askAI(c,logEl,send));chips.appendChild(b);}
-    const rowEl=h('div','crow');const inp=h('textarea');inp.id='aiIn';inp.rows=2;inp.maxLength=600;inp.placeholder='Ask the AI helper…';
-    inp.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();const v=inp.value;inp.value='';askAI(v,logEl,send);}});
-    const send=h('button','btn sm primary','ASK');send.type='button';send.addEventListener('click',()=>{const v=inp.value;inp.value='';askAI(v,logEl,send);});
-    rowEl.append(inp,send);
-    const share=h('label','agree');const cb=h('input');cb.type='checkbox';cb.checked=aiShareLog;cb.addEventListener('change',()=>{aiShareLog=cb.checked;});
-    share.append(cb,h('span',null,'Share my game log and status with the helper so it can find the exact problem'));
-    const done=h('button','btn ghost','CLOSE');done.addEventListener('click',closeModal);
-    box.append(logEl,chips,rowEl,share,done);setTimeout(()=>logEl.scrollTop=logEl.scrollHeight,0);
+/* ---- the helper orb: drag it anywhere, tap to chat, it can run a check and diagnose ---- */
+const orbEl=document.getElementById('orb'),orbChat=document.getElementById('orbChat'),aiLogEl=document.getElementById('aiLog'),aiInEl=document.getElementById('aiIn'),aiSendEl=document.getElementById('aiSend');
+const ORB={x:1,y:.36};try{Object.assign(ORB,JSON.parse(localStorage.getItem('rs-orb')||'{}'));}catch(e){}
+function placeOrb(){
+  const w=62,m=8,x=clamp(ORB.x*(innerWidth-w),m,innerWidth-w-m),y=clamp(ORB.y*(innerHeight-w),m,innerHeight-w-m);
+  orbEl.style.left=x+'px';orbEl.style.top=y+'px';if(!orbChat.hidden)placeChat();
+}
+function placeChat(){
+  const r=orbEl.getBoundingClientRect(),cw=orbChat.offsetWidth||300,ch=orbChat.offsetHeight||380,m=10;
+  let x=r.left+r.width/2-cw/2,y=r.top-ch-10;if(y<m)y=r.bottom+10;
+  if(y+ch>innerHeight-m)y=Math.max(m,innerHeight-ch-m);
+  orbChat.style.left=clamp(x,m,innerWidth-cw-m)+'px';orbChat.style.top=y+'px';
+}
+let orbDrag=null;
+orbEl.addEventListener('pointerdown',e=>{orbDrag={id:e.pointerId,sx:e.clientX,sy:e.clientY,ox:orbEl.offsetLeft,oy:orbEl.offsetTop,moved:false};orbEl.setPointerCapture(e.pointerId);e.stopPropagation();e.preventDefault();});
+orbEl.addEventListener('pointermove',e=>{
+  if(!orbDrag||e.pointerId!==orbDrag.id)return;const dx=e.clientX-orbDrag.sx,dy=e.clientY-orbDrag.sy;
+  if(!orbDrag.moved&&Math.hypot(dx,dy)<7)return;orbDrag.moved=true;orbEl.classList.add('dragging');
+  ORB.x=clamp((orbDrag.ox+dx)/Math.max(1,innerWidth-62),0,1);ORB.y=clamp((orbDrag.oy+dy)/Math.max(1,innerHeight-62),0,1);placeOrb();
+});
+const orbUp=e=>{if(!orbDrag||e.pointerId!==orbDrag.id)return;const moved=orbDrag.moved;orbDrag=null;orbEl.classList.remove('dragging');
+  if(moved){try{localStorage.setItem('rs-orb',JSON.stringify(ORB));}catch(err){}}else toggleOrbChat();};
+orbEl.addEventListener('pointerup',orbUp);orbEl.addEventListener('pointercancel',e=>{orbDrag=null;orbEl.classList.remove('dragging');});
+orbEl.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();toggleOrbChat();}});
+document.getElementById('orbClose').addEventListener('click',()=>toggleOrbChat(false));
+for(const el of [orbChat,aiInEl])el.addEventListener('keydown',e=>e.stopPropagation());
+orbChat.addEventListener('pointerdown',e=>e.stopPropagation());
+function toggleOrbChat(open){
+  open=open===undefined?orbChat.hidden:open;orbChat.hidden=!open;orbEl.classList.toggle('open',open);
+  if(open){releaseKeys&&releaseKeys();if(!aiLogEl.children.length)aiSay('a','Hi! I\'m the Rocket Strike helper 😊 Ask me for tips, or tap **Run a check** and I\'ll test your game and tell you what\'s wrong.');
+    placeChat();setTimeout(()=>{aiLogEl.scrollTop=aiLogEl.scrollHeight;if(!IS_TOUCH)aiInEl.focus();},0);}
+}
+function aiSay(cls,text,raw){const d=h('div','aimsg '+cls);if(raw)d.textContent=text;else d.innerHTML=aiFormat(text);aiLogEl.appendChild(d);aiLogEl.scrollTop=aiLogEl.scrollHeight;return d;}
+function orbMood(m){orbEl.classList.toggle('think',m==='think');orbEl.classList.toggle('happy',m==='happy');if(m==='happy')setTimeout(()=>orbEl.classList.remove('happy'),2500);}
+const chipsEl=document.getElementById('aiChips');
+for(const [label,fn] of [['Run a check',()=>runCheck()],['How do I flip?',()=>askAI('How do I flip?')],['Tips to score more',()=>askAI('Give me tips to score more goals.')],['The game lags',()=>askAI('The game lags. What can I do?')]]){
+  const b=h('button',label==='Run a check'?'check':'',label);b.type='button';b.addEventListener('click',fn);chipsEl.appendChild(b);}
+aiSendEl.addEventListener('click',()=>{const v=aiInEl.value;aiInEl.value='';askAI(v);});
+aiInEl.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();const v=aiInEl.value;aiInEl.value='';askAI(v);}});
+document.getElementById('aiShare').addEventListener('change',e=>{aiShareLog=e.target.checked;});
+addEventListener('resize',placeOrb);placeOrb();
+
+// ---- the check: test the device, graphics, frame rate, internet, game server and a live connection ----
+function measureFps(ms){return new Promise(res=>{let n=0;const t0=performance.now();const f=t=>{n++;if(t-t0<ms)requestAnimationFrame(f);else res(Math.round(n*1000/(t-t0)));};requestAnimationFrame(f);});}
+function testSocket(base){
+  return new Promise(res=>{
+    let ws;const t0=performance.now(),rtts=[];let helloAt=0,done=false;
+    const finish=r=>{if(done)return;done=true;clearTimeout(to);try{ws&&ws.close(1000,'check');}catch(e){}res(r);};
+    const to=setTimeout(()=>finish(helloAt?{ok:true,connect:helloAt,rtt:rtts.length?Math.round(rtts.reduce((a,b)=>a+b,0)/rtts.length):null}:{ok:false,why:'timed out'}),7000);
+    try{ws=new WebSocket(base.replace(/^http/,'ws')+'/ws?room=check-'+Math.random().toString(36).slice(2,8));}catch(e){finish({ok:false,why:'could not open'});return;}
+    const ping=()=>{try{ws.send(JSON.stringify({t:'ping',c:Date.now()}));}catch(e){}};
+    ws.onmessage=ev=>{let m;try{m=JSON.parse(ev.data);}catch(e){return;}
+      if(m.t==='hello'&&!helloAt){helloAt=Math.round(performance.now()-t0);ping();}
+      else if(m.t==='pong'){rtts.push(Math.max(0,Date.now()-Number(m.c)));if(rtts.length>=3)finish({ok:true,connect:helloAt,rtt:Math.round(rtts.reduce((a,b)=>a+b,0)/rtts.length)});else ping();}};
+    ws.onerror=()=>finish(helloAt?{ok:true,connect:helloAt,rtt:null}:{ok:false,why:'connection refused'});
   });
 }
-document.getElementById('aiBtn').addEventListener('click',openAI);
+let checking=false;
+async function runCheck(){
+  if(checking||aiBusy)return;checking=true;orbMood('think');
+  const lines=[];const box=aiSay('test','Running a check…',true);
+  const add=(icon,k,v)=>{lines.push(`${k}: ${v}`);box.textContent+=`\n${icon} ${k}: ${v}`;aiLogEl.scrollTop=aiLogEl.scrollHeight;};
+  try{
+    add('•','Device',`${IS_TOUCH?'touch screen':'mouse/keyboard'}, ${innerWidth}×${innerHeight}, pixel ratio ${devicePixelRatio||1}`);
+    try{const gl=renderer.getContext();const dbg=gl.getExtension('WEBGL_debug_renderer_info');const gpu=dbg?gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER);
+      add('✅','3D graphics',`WebGL ${renderer.capabilities.isWebGL2?'2':'1'} · ${String(gpu).slice(0,60)}`);}catch(e){add('⚠️','3D graphics','could not read ('+e.message+')');}
+    const fps=await measureFps(2000);
+    add(fps>=45?'✅':fps>=25?'•':'⚠️','Frame rate',`${fps} FPS · quality ${GFX.q}, resolution ${Math.round((+GFX.res||1)*100)}%, glow ${GFX.bloom&&GFX.q!=='low'?'on':'off'}${document.hidden?' (tab was hidden)':''}`);
+    add(navigator.onLine?'✅':'⚠️','Internet',navigator.onLine?'online':'offline');
+    const base=serverBase();
+    if(!base)add('⚠️','Game server','none on this site');
+    else{
+      let ok=false,ms=0,j=null;try{const t0=performance.now();const ctl=new AbortController();const to=setTimeout(()=>ctl.abort(),6000);
+        const r=await fetch(base+'/api/health',{cache:'no-store',signal:ctl.signal});clearTimeout(to);ms=Math.round(performance.now()-t0);j=await r.json();ok=!!(j&&j.ok);}catch(e){}
+      add(ok?'✅':'⚠️','Game server',ok?`online (${ms} ms to answer)${j.match==='server'?', runs matches':''}`:'not answering');
+      if(ok){const ws=await testSocket(base);
+        add(ws.ok?(ws.rtt!=null&&ws.rtt>180?'•':'✅'):'⚠️','Live connection',ws.ok?`connected in ${ws.connect} ms${ws.rtt!=null?`, ping ${ws.rtt} ms`:''}`:`failed (${ws.why})`);}
+    }
+    add(NET.netState==='ready'?'✅':'•','Multiplayer',`server list ${NET.netState}${NET.servers?`, ${NET.servers.length} match${NET.servers.length===1?'':'es'} open`:''}${LOCAL.mode==='online'?`, in a match (${M?M.ph:'-'}${NET.gameRtt?`, ping ${Math.round(NET.gameRtt)} ms`:''})`:''}`);
+    const {e:errs,w:warns}=logCounts();add(errs?'⚠️':'✅','Game log',`${errs} error${errs===1?'':'s'}, ${warns} warning${warns===1?'':'s'}`);
+    let store='works';try{localStorage.setItem('rs-check','1');localStorage.removeItem('rs-check');}catch(e){store='blocked (private mode?)';}
+    add(store==='works'?'✅':'•','Saving settings',store);
+    add(MOD.chatRestricted||suspended()?'⚠️':'✅','Chat',suspended()?'suspended':MOD.chatRestricted?'restricted':'fine');
+  }catch(e){add('⚠️','Check','stopped early: '+e.message);}
+  checking=false;
+  // diagnosis: ask the helper, with a built-in fallback
+  const q='I ran the Rocket Strike check. Results:\n'+lines.join('\n')+'\nWhat is the diagnosis, and what should I do?';
+  const ok=await askAI(q,{hideQuestion:true,label:'Here\'s what I found:'});
+  if(!ok)aiSay('a',localDiagnosis(lines));
+  orbMood(ok?'happy':'');
+}
+function localDiagnosis(lines){
+  const t=lines.join('\n'),tips=[];
+  if(/Internet: offline/.test(t))tips.push('You\'re offline. Reconnect to Wi-Fi or mobile data to play online.');
+  if(/Game server: none/.test(t))tips.push('This site has no game server. Open the game from one of the Rocket Strike sites, or use Settings → Custom server.');
+  if(/Game server: not answering/.test(t))tips.push('The game server isn\'t answering. Check your connection, then try again in a minute.');
+  if(/Live connection: failed/.test(t))tips.push('Live connections are blocked. Another network (or turning off a VPN or content blocker) may help.');
+  const f=t.match(/Frame rate: (\d+)/);if(f&&+f[1]<45)tips.push(`Your frame rate is ${f[1]} FPS. In Settings → Graphics, try Quality LOW or MEDIUM and Resolution 75–90%, and close other tabs.`);
+  const p=t.match(/ping (\d+) ms/);if(p&&+p[1]>180)tips.push(`Your ping is high (${p[1]} ms). Move closer to Wi-Fi; movement may look jumpy.`);
+  if(/Chat: (restricted|suspended)/.test(t))tips.push('Your chat is limited because of strikes. Try chatting to see how to unlock it.');
+  if(/Game log: [1-9]/.test(t))tips.push('There are errors in the game log. Reloading usually fixes them.');
+  return '**Diagnosis**\n'+(tips.length?tips.map(x=>'- '+x).join('\n'):'- Everything looks good! If something still feels off, tell me what happens.');
+}
+
 function vote(c){if(!M||M.ph!=='vote')return;LOCAL.vote={r:M.vr,c};NET.lastPeerSig='';}
 UI.vS.addEventListener('click',()=>vote('s'));UI.vW.addEventListener('click',()=>vote('w'));
 document.getElementById('specPrev').addEventListener('click',()=>cycleSpec(-1));
