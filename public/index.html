@@ -1095,7 +1095,7 @@ const ballMat=new THREE.MeshPhysicalMaterial({map:ballMap,emissiveMap:ballEm,emi
 const ball=new THREE.Mesh(new THREE.SphereGeometry(BALL_R,64,48),ballMat);ball.castShadow=true;scene.add(ball);
 const ballGlow=new THREE.Mesh(new THREE.PlaneGeometry(6,6).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({map:glowTex,color:new THREE.Color(0.25,0.6,1.2),transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,opacity:0.5}));
 ballGlow.position.y=0.04;scene.add(ballGlow);
-const BALL={pos:V(0,BALL_R,0),vel:V(),spin:V(),onGround:true,scored:false,flare:0};
+const BALL={pos:V(0,BALL_R,0),vel:V(),spin:V(),onGround:true,scored:false,flare:0,disp:V(0,BALL_R,0),off:V(),snaps:[]};
 
 /* ============================== cars ============================== */
 const ORANGE_FLAME=[[[1.6,0.45,0.08],[3,1.8,0.5],[3.5,3.4,3.2]],[[0.9,0.06,0.02],[1.6,0.4,0.05],[2.4,1.6,0.6]]];
@@ -1381,6 +1381,75 @@ function applyNetCar(c,s,age,dt){
   else{c.pos.lerp(tv,1-Math.exp(-14*dt));c.visQ.slerp(c.q,1-Math.exp(-16*dt));}
   c.boosting=!!(s[10]&1);c.grounded=!!(s[10]&2);sF.set(0,0,1).applyQuaternion(c.q);c.yaw=Math.atan2(sF.x,sF.z);
 }
+/* ---- smooth network motion ----
+   Updates arrive unevenly over the internet: several at once, then a gap. Each sender stamps its
+   updates with its own clock (ts). We map that onto our clock, keep the last few snapshots and show
+   other cars (and the ball, when you're not near it) a little in the past, gliding between
+   snapshots. Near the ball we show our own prediction instead, so hitting it still feels instant. */
+const CLK=new Map();
+// For each sender: s = (when it arrived here) - (sender's stamp). The smallest s over the last few
+// seconds is the fastest trip; anything slower is network jitter we need to wait out.
+function senderTime(peer,ts,recvAt){
+  let c=CLK.get(peer);const s=recvAt-ts;
+  if(!c||ts<c.lastTs-2000){c={off:s,spread:20,int:33,lastTs:ts,win:[s]};CLK.set(peer,c);return ts+c.off;}
+  if(ts>c.lastTs){
+    c.int+=(clamp(ts-c.lastTs,5,250)-c.int)*0.1;c.lastTs=ts;
+    c.win.push(s);if(c.win.length>90)c.win.shift();
+    const w=c.win.slice().sort((a,b)=>a-b);c.off=w[0];c.spread=w[Math.floor((w.length-1)*0.95)]-w[0];
+  }
+  return ts+c.off;
+}
+// how far in the past to show a sender's objects: the gap between updates plus nearly all the jitter
+function netDelay(peer){const c=CLK.get(peer);return c?clamp(c.int+c.spread+12,45,260):100;}
+function pushSnap(buf,t,s){if(buf.length&&t<=buf[buf.length-1].t)return;buf.push({t,s});if(buf.length>16)buf.shift();}
+const qA=new THREE.Quaternion(),qB=new THREE.Quaternion();
+// sample a snapshot buffer at time rt. Car snapshots: [px,py,pz,qx,qy,qz,qw,vx,vy,vz,flags]; ball: [px,py,pz,vx,vy,vz]
+function sampleSnaps(buf,rt,vo,outP,outV){
+  const n=buf.length;if(!n)return null;
+  while(buf.length>2&&buf[1].t<rt-500)buf.shift();
+  let i=buf.length-1;while(i>0&&buf[i-1].t>rt)i--;
+  const B=buf[i],A=i>0?buf[i-1]:null;
+  if(!A||rt>=B.t){                                     // newest is already in the past: extrapolate a little
+    const e=clamp((rt-B.t)/1000,0,0.12),S=B.s;
+    outP.set(S[0]+S[vo]*e,S[1]+S[vo+1]*e,S[2]+S[vo+2]*e);outV.set(S[vo],S[vo+1],S[vo+2]);return {A:B,B,u:1};
+  }
+  const a=A.s,b=B.s,gap=B.t-A.t;
+  if(gap>300||Math.hypot(b[0]-a[0],b[1]-a[1],b[2]-a[2])>12){outP.set(b[0],b[1],b[2]);outV.set(b[vo],b[vo+1],b[vo+2]);return {A:B,B,u:1};}
+  const u=clamp((rt-A.t)/gap,0,1),d=gap/1000,u2=u*u,u3=u2*u;
+  const h00=2*u3-3*u2+1,h10=u3-2*u2+u,h01=-2*u3+3*u2,h11=u3-u2;   // cubic Hermite: follows the velocities
+  outP.set(h00*a[0]+h10*d*a[vo]+h01*b[0]+h11*d*b[vo],h00*a[1]+h10*d*a[vo+1]+h01*b[1]+h11*d*b[vo+1],h00*a[2]+h10*d*a[vo+2]+h01*b[2]+h11*d*b[vo+2]);
+  outV.set(lerp(a[vo],b[vo],u),lerp(a[vo+1],b[vo+1],u),lerp(a[vo+2],b[vo+2],u));
+  return {A,B,u};
+}
+function netCar(c,peer,s,ts,recvAt,dt){
+  if(!Array.isArray(s)||s.length<11)return;
+  if(typeof ts!=='number'||!isFinite(ts)||!peer){applyNetCar(c,s,(performance.now()-(recvAt||performance.now()))/1000,dt);return;}
+  if(!c.snaps)c.snaps=[];
+  if(c.snapNext){c.snaps.length=0;c.lastTs=-1;}
+  if(ts!==c.lastTs){c.lastTs=ts;const v=s.map(Number);if(v.slice(0,10).every(isFinite))pushSnap(c.snaps,senderTime(peer,ts,recvAt||performance.now()),v);}
+  const r=sampleSnaps(c.snaps,performance.now()-netDelay(peer),7,tv,tv2);if(!r)return;
+  tv.y=Math.max(CAR_H,tv.y);
+  const a=r.A.s,b=r.B.s;qA.set(a[3],a[4],a[5],a[6]).normalize();qB.set(b[3],b[4],b[5],b[6]).normalize();c.q.slerpQuaternions(qA,qB,r.u);
+  c.vel.copy(tv2);
+  if(c.snapNext||c.pos.distanceTo(tv)>12){c.pos.copy(tv);c.visQ.copy(c.q);c.snapNext=false;}
+  else{c.pos.lerp(tv,1-Math.exp(-25*dt));c.visQ.slerp(c.q,1-Math.exp(-25*dt));}   // light easing hides the odd late update
+  const f=(r.u<0.5?a:b)[10]|0;c.boosting=!!(f&1);c.grounded=!!(f&2);sF.set(0,0,1).applyQuaternion(c.q);c.yaw=Math.atan2(sF.x,sF.z);
+}
+const ballPast=V(),ballPastV=V(),ballPastS=V();let ballPastOn=false;
+// where to draw the ball this frame
+function updateBallDisplay(dt){
+  if(isAuth()||!M){BALL.disp.copy(BALL.pos);BALL.off.set(0,0,0);return;}
+  BALL.off.multiplyScalar(Math.exp(-dt/0.12));
+  tv.copy(BALL.pos).add(BALL.off);                    // our prediction, with corrections eased in
+  let w=0;ballPast.copy(tv);const had=ballPastOn;ballPastOn=false;
+  if(BALL.snaps.length&&NET.hostPeer&&M.ph!=='countdown'&&!BALL.scored&&sampleSnaps(BALL.snaps,performance.now()-netDelay(NET.hostPeer),3,ballPast,ballPastV)){
+    ballPast.y=Math.max(BALL_R,ballPast.y);
+    if(!had||ballPastS.distanceTo(ballPast)>8)ballPastS.copy(ballPast);else ballPastS.lerp(ballPast,1-Math.exp(-25*dt));ballPast.copy(ballPastS);ballPastOn=true;
+    w=me.active?sstep(9,22,me.pos.distanceTo(BALL.disp)):1;   // far from the ball: show it in step with the other cars
+  }
+  const k=1-Math.exp(-4*dt);BALL.wPast=BALL.wPast===undefined?w:BALL.wPast+(w-BALL.wPast)*k;
+  BALL.disp.copy(tv).lerp(ballPast,BALL.wPast);
+}
 function reportHit(aerial){NET.hitN++;NET.hit={n:NET.hitN,b:encodeBall(),a:aerial?1:0};NET.graceUntil=performance.now()+700;}
 const physCars=()=>{const a=[];if(me.active)a.push(me);if(isAuth()&&botCar.active)a.push(botCar);return a;};
 const BAD_CH=new RegExp('[\\u0000-\\u001f\\u007f-\\u009f\\u00ad\\u061c\\u180e\\u200b-\\u200f\\u2028-\\u202e\\u2060-\\u206f\\ufeff\\ue000-\\uf8ff]','g');
@@ -1546,7 +1615,7 @@ class RoomConn{
         else if(m.t==='leave'&&typeof m.peer==='string'){const old=this.map.get(m.peer);this.map.delete(m.peer);this.cache=null;
           this.emit([],[{peer:m.peer,isMe:false,sameTab:false,kind:'viewer',presence:old?old.presence:{}}]);}
         else if(m.t==='p'&&typeof m.peer==='string'){let e=this.map.get(m.peer);if(!e){e={fresh:false};this.map.set(m.peer,e);}
-          e.presence=(m.d&&typeof m.d==='object')?m.d:{};e.updatedAt=Date.now();this.cache=null;
+          e.presence=(m.d&&typeof m.d==='object')?m.d:{};e.updatedAt=Date.now();e.recvAt=performance.now();this.cache=null;
           if(e.fresh){e.fresh=false;this.emit([m.peer],[]);}else this.emit([],[],m.peer);}
         else if(m.t==='pong'){const c=Number(m.c);if(c)this.rtt=Math.max(0,Date.now()-c);}
       };
@@ -1556,7 +1625,7 @@ class RoomConn{
       ws.onerror=()=>down('connection_error');
     });
   }
-  peerObj(id,e){return {peer:id,isMe:false,sameTab:false,kind:'viewer',guest:true,presence:e.presence||{},updatedAt:e.updatedAt||0};}
+  peerObj(id,e){return {peer:id,isMe:false,sameTab:false,kind:'viewer',guest:true,presence:e.presence||{},updatedAt:e.updatedAt||0,recvAt:e.recvAt||0};}
   peers(){
     if(this.cache)return this.cache;
     const a=[];if(this.me)a.push({peer:this.me,isMe:true,sameTab:true,kind:'viewer',guest:true,presence:this.mine,updatedAt:Date.now()});
@@ -1716,7 +1785,8 @@ function netTick(dt){
   const mine=ps.find(p=>p.sameTab);if(mine)NET.myPeer=mine.peer;
   if(!NET.isHost){
     const hp=ps.find(p=>!p.sameTab&&p.presence&&p.presence.host&&p.presence.g&&typeof p.presence.g==='object');
-    if(hp){M=hp.presence.g;NET.hostAge=clamp((Date.now()-hp.updatedAt)/1000,0,0.5);NET.hostSeenAt=performance.now();}
+    if(hp){M=hp.presence.g;NET.hostAge=clamp((Date.now()-hp.updatedAt)/1000,0,0.5);NET.hostSeenAt=performance.now();
+      NET.hostPeer=hp.peer;NET.hostTs=hp.presence.ts;NET.hostRecv=hp.recvAt;}
     else if(performance.now()-NET.hostSeenAt>(M?4000:9000)){leaveOnline('The host left, so the server closed.');return;}
   }
   pollChat(ps);trackTick(ps);hostReportsTick(ps);sanctionsTick();
@@ -1727,7 +1797,7 @@ function netTick(dt){
 function netSend(){
   if(LOCAL.mode!=='online'||!NET.gr)return;
   me.nick=nick();
-  const pr={nm:nick(),col:colourIdx,c:me.active?encodeCar(me):null,h:NET.hit,v:LOCAL.vote,ch:NET.chatOut,rp:NET.report||null};
+  const pr={ts:Math.round(performance.now()),nm:nick(),col:colourIdx,c:me.active?encodeCar(me):null,h:NET.hit,v:LOCAL.vote,ch:NET.chatOut,rp:NET.report||null};
   if(NET.isHost&&M){M.tk=(M.tk+1)%1e6;M.b=encodeBall();M.bot=botCar.active?encodeCar(botCar):null;M.ack=[...NET.ackMap];M.hn=nick();
     M.rem=r2(M.rem);M.lr=r2(M.lr);M.clk=r2(M.clk);pr.g=M;pr.host=1;}
   NET.gr.presence(pr).catch(e=>logEv('warn','Presence update failed: '+((e&&(e.code||e.message))||e)));
@@ -1737,12 +1807,17 @@ function netSend(){
 function clientBall(){
   if(isAuth()||!M||!Array.isArray(M.b))return;
   if(M.tk===NET.hostTick)return;NET.hostTick=M.tk;
+  const b=M.b.map(Number);if(b.length<6||!b.every(isFinite))return;
+  if(typeof NET.hostTs==='number'&&NET.hostPeer)pushSnap(BALL.snaps,senderTime(NET.hostPeer,NET.hostTs,NET.hostRecv||performance.now()),b);
   let acked=0;for(const a of M.ack||[])if(a[0]===NET.myPeer)acked=a[1];
   if(performance.now()<NET.graceUntil&&acked<NET.hitN)return;
-  const b=M.b.map(Number);if(!b.every(isFinite))return;const a=NET.hostAge;
-  tv.set(b[0]+b[3]*a,Math.max(BALL_R,b[1]+b[4]*a+0.5*BALL_G*a*a),b[2]+b[5]*a);
-  if(BALL.pos.distanceTo(tv)>6||M.ph==='countdown')BALL.pos.copy(tv);else BALL.pos.lerp(tv,0.35);
-  BALL.vel.set(b[3],b[4]+BALL_G*a,b[5]);
+  // the update is already old by the time we use it: run the ball forward by that much (plus half the ping)
+  const lead=clamp(NET.hostAge+(NET.gr&&NET.gr.rtt?NET.gr.rtt/2000:0.04),0,0.25);
+  tv2.copy(BALL.pos).add(BALL.off);
+  BALL.pos.set(b[0],Math.max(BALL_R,b[1]),b[2]);BALL.vel.set(b[3],b[4],b[5]);
+  if(M.ph!=='countdown'&&!BALL.scored&&lead>0){const n=Math.ceil(lead*120),h=lead/n;for(let i=0;i<n;i++)stepBall(h);}
+  if(M.ph==='countdown'||tv2.distanceTo(BALL.pos)>10)BALL.off.set(0,0,0);
+  else BALL.off.subVectors(tv2,BALL.pos);              // keep drawing it where it was, then ease to the corrected spot
 }
 function syncRemotes(dt){
   const seen=new Set();
@@ -1756,12 +1831,12 @@ function syncRemotes(dt){
       seen.add(p.peer);
       if(car.team!==r[1])setCarTeam(car,r[1]);
       if(car.colIdx!==ci){car.colIdx=ci;car.paint.color.setHex(COLOURS[ci][1]);}
-      car.nick=peerName(p);applyNetCar(car,pr.c,(Date.now()-p.updatedAt)/1000,dt);
+      car.nick=peerName(p);netCar(car,p.peer,pr.c,pr.ts,p.recvAt,dt);
     }
     if(!isAuth()&&M&&Array.isArray(M.bot)){const br=rosterEntry('bot');
       if(br){if(!botCar.proxy||!botCar.root.visible){botCar.proxy=true;botCar.snapNext=true;showCar(botCar,true);}
         if(botCar.team!==br[1]){setCarTeam(botCar,br[1]);botCar.paint.color.setHex(br[1]===1?0xff5a12:0x2a6cff);}
-        botCar.active=true;applyNetCar(botCar,M.bot,NET.hostAge,dt);}}
+        botCar.active=true;netCar(botCar,NET.hostPeer,M.bot,NET.hostTs,NET.hostRecv,dt);}}
     else if(!isAuth())botCar.active=false;
   }
   for(const [k,c] of remotes)if(!seen.has(k)){disposeCar(c);remotes.delete(k);}
@@ -2312,6 +2387,7 @@ function onKickoff(){
   trackBreak();
   hideExplosion();ball.visible=true;ballGlow.visible=true;ballTrail.clear();BALL.scored=false;BALL.flare=0;
   if(!isAuth()&&M&&Array.isArray(M.b)){BALL.pos.set(+M.b[0],+M.b[1],+M.b[2]);BALL.vel.set(0,0,0);}
+  BALL.off.set(0,0,0);BALL.snaps.length=0;BALL.disp.copy(BALL.pos);
   frameMatO.emissiveIntensity=frameMatB.emissiveIntensity=3.5;resetPads();
   UI.goal.className='';UI.banner.className='';LOCAL.cdStep=-1;
   const r=rosterEntry(myPeer());
@@ -2424,11 +2500,11 @@ function updateCamera(dt){
   }else if(me.active){
     const P=me.pos;
     if(GAME.ballCam&&ball.visible){
-      cTmp.subVectors(BALL.pos,P);cTmp.y=0;
+      cTmp.subVectors(BALL.disp,P);cTmp.y=0;
       if(cTmp.lengthSq()<0.25)cTmp.set(Math.sin(me.yaw),0,Math.cos(me.yaw));
       cTmp.normalize();camDir.lerp(cTmp,1-Math.exp(-7*dt)).normalize();
       desP.copy(P).addScaledVector(camDir,-10.5);desP.y=P.y+3.9;
-      desT.copy(P).lerp(BALL.pos,0.5);desT.y=Math.max(desT.y,P.y+0.8)+0.6;
+      desT.copy(P).lerp(BALL.disp,0.5);desT.y=Math.max(desT.y,P.y+0.8)+0.6;
     }else{
       sF.set(0,0,1).applyQuaternion(me.visQ);sF.y=0;if(sF.lengthSq()<1e-3)sF.set(Math.sin(me.yaw),0,Math.cos(me.yaw));sF.normalize();
       camDir.lerp(sF,1-Math.exp(-6*dt)).normalize();
@@ -2439,10 +2515,10 @@ function updateCamera(dt){
     // spectator: the box, or following a player
     const list=specTargets();if(LOCAL.specView>=list.length)LOCAL.specView=-1;
     const tgt=LOCAL.specView>=0?list[LOCAL.specView]:null;
-    if(tgt){cTmp.subVectors(ball.visible?BALL.pos:V(0,0,0),tgt.pos);cTmp.y=0;if(cTmp.lengthSq()<0.25)cTmp.set(0,0,-1);cTmp.normalize();camDir.lerp(cTmp,1-Math.exp(-6*dt)).normalize();
-      desP.copy(tgt.pos).addScaledVector(camDir,-11);desP.y=tgt.pos.y+4.2;desT.copy(tgt.pos).lerp(ball.visible?BALL.pos:tgt.pos,0.5);desT.y+=1;fov=62;
+    if(tgt){cTmp.subVectors(ball.visible?BALL.disp:V(0,0,0),tgt.pos);cTmp.y=0;if(cTmp.lengthSq()<0.25)cTmp.set(0,0,-1);cTmp.normalize();camDir.lerp(cTmp,1-Math.exp(-6*dt)).normalize();
+      desP.copy(tgt.pos).addScaledVector(camDir,-11);desP.y=tgt.pos.y+4.2;desT.copy(tgt.pos).lerp(ball.visible?BALL.disp:tgt.pos,0.5);desT.y+=1;fov=62;
       LOCAL.specLabel='FOLLOWING '+(tgt.nick||'PLAYER');}
-    else{desP.set(BOOTH.x,BOOTH.y+1.2,BOOTH.z-1);cTmp.copy(ball.visible?BALL.pos:EX.E);desT.set(cTmp.x*0.7,cTmp.y*0.5,cTmp.z*0.75-6);fov=55;LOCAL.specLabel='SPECTATOR BOX';}
+    else{desP.set(BOOTH.x,BOOTH.y+1.2,BOOTH.z-1);cTmp.copy(ball.visible?BALL.disp:EX.E);desT.set(cTmp.x*0.7,cTmp.y*0.5,cTmp.z*0.75-6);fov=55;LOCAL.specLabel='SPECTATOR BOX';}
   }
   if(snapCam){camPos.copy(desP);camTgt.copy(desT);camFov=fov;snapCam=false;}
   else{const k=M&&M.ph==='goal'?3.5:10;camPos.lerp(desP,1-Math.exp(-dt*k));camTgt.lerp(desT,1-Math.exp(-dt*12));camFov=lerp(camFov,fov,1-Math.exp(-dt*5));}
@@ -2568,13 +2644,14 @@ function tick(dt){
   }else{me.inp.throttle=me.inp.steer=0;me.boosting=false;input.jumpPressed=false;}
   if(M&&M.gn!==LOCAL.lastGoalN)syncFromM();
   for(const c of [me,botCar,...remotes.values()])if(c.root.visible)syncCarVisual(c,dt,sdt);
+  updateBallDisplay(dt);
   if(ball.visible){
-    ball.position.copy(BALL.pos);
+    ball.position.copy(BALL.disp);
     if(BALL.onGround)BALL.spin.crossVectors(up,BALL.vel).divideScalar(BALL_R);
     const w=BALL.spin.length();if(w>1e-4)ball.rotateOnWorldAxis(cTmp.copy(BALL.spin).divideScalar(w),w*sdt);
     BALL.flare*=Math.exp(-3*sdt);ballMat.emissive.setRGB(lerp(0.5,1,BALL.flare),lerp(0.78,0.9,BALL.flare),1);ballMat.emissiveIntensity=0.8+4*BALL.flare;
-    ballGlow.position.x=BALL.pos.x;ballGlow.position.z=BALL.pos.z;ballGlow.material.opacity=0.55*(1-sstep(2,14,BALL.pos.y));
-    if(BALL.vel.length()>30)ballTrail.add(BALL.pos,GAME.simT);
+    ballGlow.position.x=BALL.disp.x;ballGlow.position.z=BALL.disp.z;ballGlow.material.opacity=0.55*(1-sstep(2,14,BALL.disp.y));
+    if(BALL.vel.length()>30)ballTrail.add(BALL.disp,GAME.simT);
   }
   ballTrail.update(GAME.simT,camera.position);
   if(IMPACT.t<0.45){IMPACT.t+=sdt;const k=IMPACT.t;impact.scale.setScalar(0.5+6*(1-Math.exp(-14*k)));
@@ -2587,7 +2664,7 @@ function tick(dt){
   flashMat.uniforms.uTime.value=GAME.realT;flashMat.uniforms.uExcite.value=Math.max(0,flashMat.uniforms.uExcite.value-dt*0.12);
   if(!live)for(const p of PADS)if(p.orb&&p.active)p.orb.position.y=1.8+0.25*Math.sin(GAME.realT*2+p.ph);
   boostLight.position.copy(me.nozW);boostLight.intensity=me.root.visible?60*me.boostLevel:0;
-  cTmp.copy(M&&M.ph==='goal'&&EX.active?EX.E:me.active||LOCAL.mode==='menu'||!live?me.pos:(ball.visible?BALL.pos:V()));cTmp.y=0;
+  cTmp.copy(M&&M.ph==='goal'&&EX.active?EX.E:me.active||LOCAL.mode==='menu'||!live?me.pos:(ball.visible?BALL.disp:V()));cTmp.y=0;
   sun.target.position.copy(cTmp);sun.position.copy(cTmp).addScaledVector(SUN_DIR,90);
   if(!EX.active){frameMatO.emissiveIntensity+=(3.5-frameMatO.emissiveIntensity)*0.1;frameMatB.emissiveIntensity+=(3.5-frameMatB.emissiveIntensity)*0.1;}
   bloom.strength=0.8+(EX.active?0.25*Math.exp(-3*EX.te):0);
