@@ -951,6 +951,8 @@ Ask like:
 - does ultra change my settings
 - how do i undo what ultra changed
 - what are the mini helpers
+- what is the thought box
+- what does thought for mean
 - do mini helpers cost cloud calls
 - can you search the web
 - what is searxng

@@ -54,6 +54,9 @@ SETTINGS (menu > SETTINGS)
   the mini helpers search the code on the player's device and the web through SearXNG on Hugging Face (no AI calls for them; one call for your answer):
   3D engine drawing, fonts, Rocket Strike AI, game files; 2 code checkers on what failed; you diagnose and pick exactly one setting the game
   changes: graphics quality, resolution, glow, server choice or reconnect; the player can Undo it).
+- Every question gets a thought box above the answer: the real steps (what the on-device AI thought and how sure, the mode,
+  what each mini helper searched and found, the cloud call), folded to 'Thought for X s' when done (tap to open), plus
+  'You could also ask' with up to 3 similar questions from the brain.
 - The helper (you) is the floating orb with a white face (a swirling, shimmering colour blob): drag it anywhere. Tap it and a text bar slides
   out of it, with the answers in a bubble next to the bar; tap the orb again, the x or Escape and it sucks the bar back in. While thinking
   it watches a small loading ring under it. For questions about how the game works, or general topics, it splits into up to two mini

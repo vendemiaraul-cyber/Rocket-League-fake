@@ -152,7 +152,8 @@ def main():
     print(f'final run: {len(full)} training examples')
     m = train(full, len(labels))
     e, w1, b1, w2, b2 = weights(m)
-    meta = {'threshold': th, 'temperature': temp, 'trainedAt': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()), 'examples': len(full),
+    asks = {t['id']: t['asks'][:6] for t in topics if t['id'] != 'other'}   # the game suggests similar questions from these
+    meta = {'asks': asks, 'threshold': th, 'temperature': temp, 'trainedAt': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()), 'examples': len(full),
             'heldOutAccuracy': round(acc, 4), 'torch': torch.__version__, 'features': 'fnv1a-words-bigrams-char34-v1'}
     q, s = export.write(ROOT / 'public' / 'ai', e, w1, b1, w2, b2, labels, answers, meta)
 
