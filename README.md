@@ -80,14 +80,13 @@ Without it, players can still join a server through **MULTIPLAYER → Game serve
 
 Which server a player uses, first match wins: `?server=https://<worker-address>` in the page link, then a server they picked in **MULTIPLAYER → Game server → CHANGE** (saved only on their device), then the site's `server.json` (from the host's `GAME_SERVER` setting, above), then `GAME_SERVER` in `public/index.html`, then the site itself.
 
-## Messages to Discord
+## AI helper
 
-Settings → Community has **Send a message to Discord directly here**. The game posts to `/api/discord` on the game server, and the Worker forwards it to a Discord webhook with the player's name and anonymous player ID (`RS-XXXXXX`, kept in their browser). To turn it on:
+The game menu (AI HELP, also in Settings) opens a helper that gives tips and troubleshooting. It runs on the game server: `POST /api/assistant` calls **gpt-oss-120b** on Workers AI through the `AI` binding in `wrangler.jsonc`, so there's nothing to set up beyond deploying the Worker.
 
-1. In Discord: **Edit Channel → Integrations → Webhooks → New Webhook**, pick the channel, **Copy Webhook URL**.
-2. In Cloudflare: your Worker → **Settings → Variables and Secrets → Add**, type **Secret**, name `DISCORD_WEBHOOK`, paste the URL, save.
-
-The webhook stays secret (it's never in the code). Limits: 300 characters, one message every 30 seconds per player, about 20 a minute in total, no @everyone/@here pings, and the game's swear filter runs first. `/api/health` reports `"discord": true` when it's set up.
+- It answers from private notes written from the game's files (`src/assistant-knowledge.js`) plus, if the player allows it, their game log and status. It's told never to quote or reveal those notes, code or its instructions.
+- Limits: one question every 5 seconds per player, about 30 a minute in total, 600 characters per question. Workers AI's free allowance is 10,000 neurons a day, roughly 60 questions; after that it answers "couldn't answer right now" until the next day (or upgrade to Workers Paid).
+- Update `src/assistant-knowledge.js` when the game changes, so the helper stays accurate.
 
 ## Notes
 

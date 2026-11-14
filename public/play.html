@@ -196,11 +196,19 @@ body.spect .ingame .boost,body.spect .camtag{display:none}
 .linklist li{display:flex;flex-direction:column;gap:1px}
 .linklist b{font-size:12px;color:#fff}
 .linklist a,.linklist code{font-size:11.5px;color:#9fd0ff;word-break:break-all;font-family:ui-monospace,Menlo,monospace}
-#dcMsg{font:600 14px 'Rajdhani',system-ui,sans-serif;color:#fff;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.3);border-radius:8px;padding:.5em .6em;outline:none;resize:vertical;user-select:text;-webkit-user-select:text}
-#dcMsg:focus{border-color:#7cc6ff}
 #fpsMeter{position:fixed;left:8px;top:8px;z-index:30;font:700 11px ui-monospace,Menlo,monospace;color:#9ff0c4;background:rgba(0,0,0,.45);padding:3px 7px;border-radius:6px;pointer-events:none}
 #fpsMeter[hidden]{display:none}
-#setBtn{align-self:center}
+#aiLog{display:flex;flex-direction:column;gap:8px;max-height:46vh;overflow:auto;padding:2px}
+.aimsg{padding:9px 11px;border-radius:12px;line-height:1.45;font-size:13.5px;max-width:92%;user-select:text;-webkit-user-select:text}
+.aimsg.u{align-self:flex-end;background:#2f6bff;color:#fff;border-bottom-right-radius:4px}
+.aimsg.a{align-self:flex-start;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-bottom-left-radius:4px}
+.aimsg.a ul{margin:4px 0;padding-left:1.2em}.aimsg.a p{margin:0 0 6px}.aimsg.a p:last-child{margin:0}
+.aimsg.wait{opacity:.7;font-style:italic}
+#aiIn{font:600 14px 'Rajdhani',system-ui,sans-serif;color:#fff;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.3);border-radius:8px;padding:.5em .6em;outline:none;resize:none;user-select:text;-webkit-user-select:text;min-width:0;flex:1}
+#aiIn:focus{border-color:#7cc6ff}
+.aichips{display:flex;flex-wrap:wrap;gap:6px}
+.aichips button{background:rgba(124,198,255,.1);border:1px solid rgba(124,198,255,.35);color:#cfe6ff;border-radius:999px;padding:5px 10px;font:700 11px 'Rajdhani',sans-serif;letter-spacing:.06em;cursor:pointer}
+#setBtn,#aiBtn{align-self:center}
 .menulinks{display:flex;justify-content:center;gap:18px;align-items:center}.menulinks a.linkbtn{text-decoration:none}
 .mpstatus{display:flex;align-items:center;gap:8px;font-weight:600;font-size:13px;color:#cfdcf6;line-height:1.3}
 .spin{width:12px;height:12px;border-radius:50%;border:2px solid rgba(255,255,255,.25);border-top-color:#7cc6ff;animation:spin .8s linear infinite;flex:none}
@@ -342,7 +350,7 @@ body.touch #playersBtn{transform:translateX(calc(-50% - 30px))}
     <div class="lbl">PAINT · <b id="colName">COBALT</b></div>
     <div class="swatches" id="swatches"></div>
     <div class="btnrow"><button class="btn primary" id="startBtn">PLAY VS BOT</button><button class="btn ghost" id="mpBtn">MULTIPLAYER</button></div>
-    <button class="btn ghost sm" id="setBtn" type="button">SETTINGS</button>
+    <div class="btnrow"><button class="btn ghost sm" id="setBtn" type="button">SETTINGS</button><button class="btn ghost sm" id="aiBtn" type="button">AI HELP</button></div>
     <div class="menulinks"><a class="linkbtn" id="homeLink" href="./">&larr; HOME</a><button class="linkbtn logbtn" type="button">ERROR LOG <span class="logcount" hidden></span></button></div>
     <div class="hosted small"><span class="hdot" id="menuHostDot"></span><span id="menuHostText">Checking where the game is running…</span></div>
     <div class="keys" id="keysHint">WASD drive · SPACE jump, again to flip · SHIFT boost · Q/E air roll · C camera · ENTER chat</div>
@@ -2567,32 +2575,6 @@ function tryInviteJoin(){
 document.getElementById('apBtn').addEventListener('click',()=>{if(!NET.isHost)return;NET.apOn=!NET.apOn;
   sysChat(NET.apOn?'Autopilot is on: the server drives the cars of players who step away.':'Autopilot is off: cars of players who step away leave the field until they\'re back.');});
 /* ---- settings ---- */
-// an anonymous player ID, kept in this browser, sent with messages to Discord so admins can tell senders apart
-const PLAYER_ID=(()=>{let v='';try{v=localStorage.getItem('rs-pid')||'';}catch(e){}
-  if(!/^RS-[A-Z0-9]{6}$/.test(v)){const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';v='RS-';const r=crypto.getRandomValues(new Uint8Array(6));for(const x of r)v+=A[x%A.length];try{localStorage.setItem('rs-pid',v);}catch(e){}}
-  return v;})();
-let dcLastSent=0;
-async function sendToDiscord(raw){
-  const text=cleanText(raw,300);
-  if(text.length<2)return {ok:false,msg:'Write a message first.'};
-  if(suspended())return {ok:false,msg:'You can\'t send messages while suspended.'};
-  if(MOD.chatRestricted)return {ok:false,msg:'Your chat is restricted. Agree to the rules again to send messages.'};
-  const sc=scanText(text);
-  if(sc.sev>=2||sc.placeInsult.length)return {ok:false,msg:'Not sent: it breaks the chat rules. Keep it cool.'};
-  const wait=30-Math.floor((performance.now()-dcLastSent)/1000);if(dcLastSent&&wait>0)return {ok:false,msg:`Wait ${wait} s before sending another message.`};
-  const base=serverBase();if(!base)return {ok:false,msg:'There\'s no game server here, so messages can\'t be sent.'};
-  try{
-    const ctl=new AbortController();const to=setTimeout(()=>ctl.abort(),8000);
-    const r=await fetch(base+'/api/discord',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({text:sc.sev===1?sc.masked:text,name:nick(),id:PLAYER_ID}),signal:ctl.signal});
-    clearTimeout(to);let j=null;try{j=await r.json();}catch(e){}
-    if(r.ok&&j&&j.ok){dcLastSent=performance.now();logEv('info','Message sent to Discord');return {ok:true,msg:'Sent! Check the Discord server.'};}
-    const why=j&&j.reason;
-    if(why==='not_set_up'||r.status===404)return {ok:false,msg:'Messages to Discord aren\'t set up on this server yet.'};
-    if(why==='slow_down')return {ok:false,msg:`Wait ${j.wait||30} s before sending another message.`};
-    if(why==='busy')return {ok:false,msg:'Lots of messages right now. Try again in a minute.'};
-    return {ok:false,msg:'Couldn\'t reach Discord. Try again later.'};
-  }catch(e){return {ok:false,msg:'Couldn\'t reach the game server. Try again later.'};}
-}
 NET.localHost=(()=>{try{return localStorage.getItem('rs-localhost')==='1';}catch(e){return false;}})();
 const CUSTOMS={len:120,max:6,bot:1,ub:0};
 try{Object.assign(CUSTOMS,JSON.parse(localStorage.getItem('rs-customs')||'{}'));}catch(e){}
@@ -2614,16 +2596,8 @@ function openSettings(){
     const com=section('COMMUNITY');
     const a=h('a','discordbtn');a.href=DISCORD_URL;a.target='_blank';a.rel='noopener noreferrer';a.innerHTML=DISCORD_SVG;a.appendChild(document.createTextNode('Join our Discord server!'));
     com.appendChild(a);
-    // send a message straight to the Discord server
-    com.appendChild(h('b',null,'Send a message to Discord directly here'));
-    const ta=h('textarea');ta.id='dcMsg';ta.maxLength=300;ta.rows=3;ta.placeholder='Say hi, report a bug, suggest something…';
-    ta.addEventListener('keydown',e=>e.stopPropagation());
-    const note=h('p','muted',`Sent with your name (${nick()}) and player ID ${PLAYER_ID}. Same rules as the chat: keep it cool.`);
-    const st=h('p','muted','');st.setAttribute('aria-live','polite');
-    const send=h('button','btn sm primary','SEND TO DISCORD');send.type='button';
-    send.addEventListener('click',async()=>{send.disabled=true;st.textContent='Sending…';const r=await sendToDiscord(ta.value);st.textContent=r.msg;if(r.ok)ta.value='';send.disabled=false;});
-    com.append(ta,note,send,st);
     box.appendChild(com);
+    const aiB=h('button','btn sm ghost','AI HELP: TIPS AND TROUBLESHOOTING');aiB.type='button';aiB.addEventListener('click',openAI);box.appendChild(aiB);
     // graphics
     const g=section('GRAPHICS');
     g.appendChild(row('Quality',seg([['low','LOW'],['medium','MEDIUM'],['high','HIGH']],GFX.q,v=>{GFX.q=v;saveGfx();applyGfx();})));
@@ -2652,7 +2626,7 @@ function openSettings(){
     pr.appendChild(h('p','muted','Your name, paint, settings and chat strikes are saved only in this browser. Want a second opinion? Scan any of the links below on VirusTotal.'));
     const ul=h('ul','linklist');
     const links=[['This site',location.origin],['Game server',serverBase()||'none (playing offline against the bot)'],['3D engine (three.js)','https://cdn.jsdelivr.net/npm/three@0.165.0/'],
-      ['Fonts (Google Fonts)','https://fonts.googleapis.com'],['Source code (anyone can read it)',SOURCE_URL],['Discord server',DISCORD_URL],['Virus check (VirusTotal)','https://www.virustotal.com/gui/home/url']];
+      ['Fonts (Google Fonts)','https://fonts.googleapis.com'],['Source code (anyone can read it)',SOURCE_URL],['Discord server',DISCORD_URL],['AI helper (on the game server, gpt-oss-120b via Workers AI)',(serverBase()||'none')+'/api/assistant'],['Virus check (VirusTotal)','https://www.virustotal.com/gui/home/url']];
     for(const [label,url] of links){const li=h('li');li.appendChild(h('b',null,label));
       if(/^https?:\/\//.test(url)){const l=h('a',null,url);l.href=url;l.target='_blank';l.rel='noopener noreferrer';li.appendChild(l);}else li.appendChild(h('code',null,url));ul.appendChild(li);}
     pr.appendChild(ul);box.appendChild(pr);
@@ -2682,6 +2656,66 @@ function openCustoms(){
   });
 }
 document.getElementById('setBtn').addEventListener('click',openSettings);
+/* ---- AI helper (runs on the game server: Workers AI, gpt-oss-120b) ---- */
+const AI_CHAT=[];let aiBusy=false,aiShareLog=true;
+function aiStatus(){
+  return `site=${location.host} hosting=${HOSTING.name||'-'} server=${serverBase()||'none'} serverStatus=${NET.netState} serverRun=${!!NET.serverRun} `+
+    `mode=${LOCAL.mode} phase=${M?M.ph:'-'} role=${LOCAL.mode==='online'?(NET.isHost?'host':'player'):'-'} ping=${NET.gameRtt?Math.round(NET.gameRtt)+'ms':'-'} `+
+    `graphics=${GFX.q}/${GFX.res}/${GFX.bloom?'glow':'noglow'} touch=${IS_TOUCH} screen=${innerWidth}x${innerHeight} chatRestricted=${!!MOD.chatRestricted} suspended=${!!suspended()} customServer=${NET.localHost?'device':'online'}`;
+}
+// light formatting for answers: paragraphs, bullet lists and **bold**, after escaping everything
+function aiFormat(text){
+  const esc=t=>t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const bold=t=>esc(t).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/`([^`]+)`/g,'<b>$1</b>');
+  let html='',list=null;
+  for(const line of String(text).split('\n')){
+    const m=line.match(/^\s*(?:[-*•]|\d+[.)])\s+(.*)$/);
+    if(m){if(!list){list=[];}list.push('<li>'+bold(m[1])+'</li>');continue;}
+    if(list){html+='<ul>'+list.join('')+'</ul>';list=null;}
+    const t=line.replace(/^#+\s*/,'').trim();if(t)html+='<p>'+bold(t)+'</p>';
+  }
+  if(list)html+='<ul>'+list.join('')+'</ul>';
+  return html||'<p>…</p>';
+}
+async function askAI(question,logEl,sendBtn){
+  const q=cleanText(question,600);if(q.length<2||aiBusy)return;
+  const base=serverBase();
+  const add=(cls,html)=>{const d=h('div','aimsg '+cls);d.innerHTML=html;logEl.appendChild(d);logEl.scrollTop=logEl.scrollHeight;return d;};
+  add('u',aiFormat(q).replace(/<\/?(ul|li|b)>/g,''));AI_CHAT.push({role:'user',content:q});
+  if(!base){add('a',aiFormat('There\'s no game server here, so the AI helper can\'t answer. Open the game from one of the Rocket Strike sites.'));return;}
+  aiBusy=true;if(sendBtn)sendBtn.disabled=true;const wait=add('a wait','<p>Thinking…</p>');
+  try{
+    const ctl=new AbortController();const to=setTimeout(()=>ctl.abort(),45000);
+    const r=await fetch(base+'/api/assistant',{method:'POST',headers:{'content-type':'application/json'},signal:ctl.signal,
+      body:JSON.stringify({messages:AI_CHAT.slice(-8),status:aiShareLog?aiStatus():'',log:aiShareLog?logText(80):''})});
+    clearTimeout(to);let j=null;try{j=await r.json();}catch(e){}
+    wait.remove();
+    if(r.ok&&j&&j.ok&&j.reply){AI_CHAT.push({role:'assistant',content:j.reply});add('a',aiFormat(j.reply));}
+    else{const why=j&&j.reason;AI_CHAT.pop();
+      add('a',aiFormat(why==='not_set_up'||r.status===404?'The AI helper isn\'t set up on this game server yet.':why==='slow_down'?`One moment: you can ask again in ${j.wait||5} s.`:
+        why==='busy'?'Lots of questions right now. Try again in a minute.':'The AI helper couldn\'t answer right now. Try again in a bit.'));}
+  }catch(e){wait.remove();AI_CHAT.pop();add('a',aiFormat('Couldn\'t reach the AI helper. Check your connection and try again.'));}
+  aiBusy=false;if(sendBtn)sendBtn.disabled=false;
+}
+function openAI(){
+  openModal(box=>{
+    box.append(h('h3',null,'AI help'),h('p','muted','Ask for tips or help with a problem. Runs on the game server with gpt-oss-120b. AI can make mistakes.'));
+    const logEl=h('div');logEl.id='aiLog';
+    if(!AI_CHAT.length){const d=h('div','aimsg a');d.innerHTML=aiFormat('Hi! I can give you tips and help fix problems with Rocket Strike. What do you need?');logEl.appendChild(d);}
+    else for(const m of AI_CHAT){const d=h('div','aimsg '+(m.role==='user'?'u':'a'));d.innerHTML=aiFormat(m.content);logEl.appendChild(d);}
+    const chips=h('div','aichips');
+    for(const c of ['How do I flip?','Tips to score more','The game lags','I can\'t join a server','Why is my chat restricted?']){const b=h('button',null,c);b.type='button';b.addEventListener('click',()=>askAI(c,logEl,send));chips.appendChild(b);}
+    const rowEl=h('div','crow');const inp=h('textarea');inp.id='aiIn';inp.rows=2;inp.maxLength=600;inp.placeholder='Ask the AI helper…';
+    inp.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();const v=inp.value;inp.value='';askAI(v,logEl,send);}});
+    const send=h('button','btn sm primary','ASK');send.type='button';send.addEventListener('click',()=>{const v=inp.value;inp.value='';askAI(v,logEl,send);});
+    rowEl.append(inp,send);
+    const share=h('label','agree');const cb=h('input');cb.type='checkbox';cb.checked=aiShareLog;cb.addEventListener('change',()=>{aiShareLog=cb.checked;});
+    share.append(cb,h('span',null,'Share my game log and status with the helper so it can find the exact problem'));
+    const done=h('button','btn ghost','CLOSE');done.addEventListener('click',closeModal);
+    box.append(logEl,chips,rowEl,share,done);setTimeout(()=>logEl.scrollTop=logEl.scrollHeight,0);
+  });
+}
+document.getElementById('aiBtn').addEventListener('click',openAI);
 function vote(c){if(!M||M.ph!=='vote')return;LOCAL.vote={r:M.vr,c};NET.lastPeerSig='';}
 UI.vS.addEventListener('click',()=>vote('s'));UI.vW.addEventListener('click',()=>vote('w'));
 document.getElementById('specPrev').addEventListener('click',()=>cycleSpec(-1));
