@@ -932,6 +932,27 @@ Ask like:
 - check everything
 - why doesnt it work
 
+## helper-modes
+Answer:
+The helper has three modes (top of my chat bubble):
+- **LIGHT** (normal): I answer on your device; anything I'm unsure of goes to the cloud helper without research. Uses the least.
+- **STABILIZED**: for problems and errors I answer first, then the cloud helper double-checks it with **2 mini helpers** reading the game's code.
+- **ULTRA**: runs a full check plus an asset check (3D engine, fonts, my AI, game files), 2 mini helpers look into the code behind anything that fails, and I change **exactly one setting** to fix it. There's an **Undo** button.
+Keywords: modes, helper modes, light mode, stabilized, stabilized mode, ultra, ultra mode, efficiency, modalità, which mode
+Ask like:
+- what are the modes
+- what does ultra do
+- what is stabilized mode
+- light or ultra
+- which mode should i use
+- what is light mode
+- cosa fa la modalità ultra
+- modalità del helper
+- does ultra change my settings
+- how do i undo what ultra changed
+- efficiency modes
+- what is the difference between light and stabilized
+
 ## sites
 Answer:
 Rocket Strike runs on several sites (Cloudflare, Netlify, Render and Vercel); they're all on the main page under **Where to play**. They share the same game server, so players on any of them see the same matches.

@@ -259,8 +259,15 @@ body.driving #orb:not(.open){opacity:.55;transform:scale(.82)}
 #orbTalk{position:fixed;z-index:35;display:flex;flex-direction:column;background:rgba(10,13,32,.95);border:1px solid rgba(255,255,255,.12);border-radius:18px;
   box-shadow:0 16px 44px rgba(0,0,0,.5);overflow:hidden;color:#e8eefc;font-size:13px;-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
 #orbTalk .ot-head{display:flex;align-items:center;padding:7px 6px 0 13px;font:400 11px 'Russo One',Impact,sans-serif;letter-spacing:.1em;color:#9fb6e0}
-#orbTalk .ot-head span{flex:1}
-#orbTalk .ot-head button{background:none;border:0;color:#9fb6e0;font-size:20px;line-height:1;cursor:pointer;padding:2px 7px}
+#orbTalk .ot-head span{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+#orbTalk .ot-head{gap:6px}
+.ot-modes{display:flex;gap:2px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:999px;padding:2px}
+#orbTalk .ot-modes button{background:none;border:0;color:#9fb6e0;font:400 9px 'Russo One',Impact,sans-serif;letter-spacing:.08em;padding:4px 7px;border-radius:999px;cursor:pointer}
+#orbTalk .ot-modes button.on{background:linear-gradient(135deg,#4f7dff,#a765ff);color:#fff;box-shadow:0 2px 8px rgba(110,90,255,.4)}
+#orbTalk .ot-modes button[data-m=ultra].on{background:linear-gradient(135deg,#ff6fb3,#ffae6b)}
+.aimsg.mode{align-self:stretch;max-width:none;background:rgba(130,110,255,.08);border-color:rgba(167,101,255,.28);font-size:12px}
+.aimsg.fix{border-color:rgba(255,174,107,.45);background:rgba(255,174,107,.08)}
+#orbClose{background:none;border:0;color:#9fb6e0;font-size:20px;line-height:1;cursor:pointer;padding:2px 7px}
 #aiLog{flex:1;min-height:40px;overflow:auto;display:flex;flex-direction:column;gap:7px;padding:8px 10px 10px;-webkit-overflow-scrolling:touch}
 .aimsg{padding:8px 10px;border-radius:12px;line-height:1.42;max-width:92%;user-select:text;-webkit-user-select:text}
 .aimsg.u{align-self:flex-end;background:#2f6bff;color:#fff;border-bottom-right-radius:4px}
@@ -477,7 +484,7 @@ body.touch #playersBtn{transform:translateX(calc(-50% - 30px))}
   </div>
 </div>
 <div id="orbTalk" hidden role="dialog" aria-label="Rocket Strike helper">
-  <div class="ot-head"><span>RS HELPER</span><button type="button" id="orbClose" aria-label="Close">&times;</button></div>
+  <div class="ot-head"><span>RS HELPER</span><div class="ot-modes" id="aiModes" role="group" aria-label="Helper mode"><button type="button" data-m="light" title="Light: answers on your device, uses the least">LIGHT</button><button type="button" data-m="stabilized" title="Stabilized: problems are double-checked in the code by 2 mini helpers">STABILIZED</button><button type="button" data-m="ultra" title="Ultra: full check, 2 mini helpers in the code, then one setting fixed">ULTRA</button></div><button type="button" id="orbClose" aria-label="Close">&times;</button></div>
   <div id="aiLog" aria-live="polite"></div>
   <div class="aichips" id="aiChips"></div>
   <label class="oc-share"><input type="checkbox" id="aiShare" checked><span>Share my game log so I can find the exact problem</span></label>
@@ -2863,33 +2870,78 @@ async function rsaiAnswer(q,any){
 }
 // Asks the helper. The server first decides whether to send mini helpers to research (the game's code, or
 // Wikipedia) and streams their progress, one JSON object per line; older servers just answer.
+/* ---- helper modes: LIGHT (the default, cheapest), STABILIZED (double-checks problems with two code checkers),
+   ULTRA (full check + asset check, two code checkers, then the game changes exactly one setting) ---- */
+let AIMODE=(()=>{try{const m=localStorage.getItem('rs-aimode');return ['light','stabilized','ultra'].includes(m)?m:'light';}catch(e){return 'light';}})();
+const AIMODE_NOTE={light:'⚡ **Light**: I answer on your device. Anything I\'m unsure of goes to the cloud helper without research. Uses the least.',
+  stabilized:'🛡 **Stabilized**: for problems and errors I answer first, then the cloud helper double-checks it with **2 mini helpers** reading different parts of the game\'s code.',
+  ultra:'🚀 **Ultra**: every message runs a full check and asset check, **2 mini helpers** look into the code behind anything that fails, and then I change **exactly one setting** to fix it (you can undo it).'};
+const TROUBLE=new Set(['lag','jitter','white-screen','webgl','cant-host','create-failed','match-closed','lost-connection','host-left','stuck-goal','status-line','log','check','chat-restricted','saved-data']);
+const TROUBLE_RE=/error|bug|broken|crash|stuck|froze|freez|lag|glitch|not work|doesn.?t work|won.?t|can.?t|cannot|problem|wrong|fail|black screen|white screen|disconnect|non funziona|errore|bloccat|problema|lento/i;
+const TOPIC_CODE={lag:'applyGfx quality bloom setPixelRatio fps GFX',jitter:'snapshot interpolation netDelay replayBall followHost',
+  'white-screen':'WebGLRenderer importmap three renderer error','webgl':'WebGLRenderer getContext webgl renderer','cant-host':'hostBtn disabled netState lobby setOnline',
+  'create-failed':'hostGame joinGame openRoom could not','match-closed':'tryInviteJoin JOIN_CODE servers invite','lost-connection':'RoomConn onclose reconnect retryLobby',
+  'host-left':'host left server closed localHost','stuck-goal':'goal kickoff syncFromM followHost phase','status-line':'renderHosting notLinked detectServer health',
+  'chat-restricted':'chatRestricted captcha suspended strikes','log':'logEv error Frame window.onerror','check':'runCheck testSocket health','saved-data':'localStorage setItem getItem'};
+const CODE_STOP=new Set('the and for with that this how does what why when where are was you your from into game rocket strike it its can not dont doesnt my i a to is of in on me'.split(' '));
+const isTrouble=(q,label)=>TROUBLE.has(label)||TROUBLE_RE.test(q)||(logCounts().e>0&&/why|what|happen|help/i.test(q));
+function qWords(q){return rsaiNorm(q).split(' ').filter(w=>w.length>2&&!CODE_STOP.has(w)).slice(0,6).join(' ');}
+function logProblems(){return (window.__rlLogBuf||[]).filter(x=>x.level==='error'||x.level==='fatal'||x.level==='warn').slice(-3).map(x=>String(x.msg||x.text||'')).join(' ').slice(0,90);}
+// two code-checking jobs: the first follows the question, the second the errors in the log (or the same topic, deeper)
+function troubleFocus(q,label){
+  const topic=TOPIC_CODE[label]||'';const first=(qWords(q)+' '+topic).trim()||topic||'error';
+  const second=(logProblems()?qWords(logProblems())+' '+topic:topic||first).trim();
+  return [{q:first,label:'checking the cause'},{q:second,label:'second code check'}];
+}
+function setAiMode(m){AIMODE=m;try{localStorage.setItem('rs-aimode',m);}catch(e){}
+  for(const b of document.querySelectorAll('#aiModes button'))b.classList.toggle('on',b.dataset.m===m);
+  const ck=document.getElementById('aiCheck');if(ck)ck.title=m==='ultra'?'Ultra check: test, diagnose and fix one thing':m==='stabilized'?'Run a check (double-checked in the code)':'Run a check';
+  aiSay('a mode',AIMODE_NOTE[m]);}
+// Asks the helper. Our own AI answers first when it's sure; the cloud helper gets the rest (how depends on the mode).
 async function askAI(question,opt){
-  opt=opt||{};const q=String(question||'').replace(/[\u0000-\u0008\u000b-\u001f]/g,' ').trim().slice(0,opt.hideQuestion?1400:600);if(q.length<2||aiBusy)return false;
+  opt=opt||{};const q=String(question||'').replace(/[\u0000-\u0008\u000b-\u001f]/g,' ').trim().slice(0,opt.hideQuestion?1400:600);if(q.length<2||aiBusy||checking)return false;
   if(!orbOpen)toggleOrbChat(true);
   if(!opt.hideQuestion&&!opt.again)aiSay('u',q,true);
   chipsEl.hidden=true;   // the quick questions only show until the first question
   const base=serverBase();
+  if(AIMODE==='ultra'&&!opt.hideQuestion&&!opt.cloud)return runUltra(q);
+  let label='';
   // our own AI first: instant, on this device, no limits
   if(!opt.hideQuestion&&!opt.cloud){
     aiBusy=true;aiSendEl.disabled=true;orbMood('think');const dots=aiDots();
     const t0=performance.now(),loc=await rsaiAnswer(q,!base);
+    label=loc?loc.label:((rsaiClassify(q)||{}).label||'');
     if(loc){
       await new Promise(r=>setTimeout(r,Math.max(0,420-(performance.now()-t0))));   // a moment to show him thinking
       dots.remove();AI_CHAT.push({role:'user',content:q},{role:'assistant',content:loc.text});
       const m=aiSay('a',loc.text);rsaiTag(m,q);
-      aiBusy=false;aiSendEl.disabled=false;orbMood('happy');return true;
+      aiBusy=false;aiSendEl.disabled=false;
+      if(AIMODE==='stabilized'&&base&&isTrouble(q,loc.label)){   // problems get a second opinion, checked in the code
+        orbMood('');return aiCloud('Please double-check that answer for my problem: '+q,{local:loc.text,focus:troubleFocus(q,loc.label),label:'Double-check:'});
+      }
+      orbMood('happy');return true;
     }
     dots.remove();aiBusy=false;aiSendEl.disabled=false;
   }
+  if(!base){orbMood('');if(!opt.hideQuestion)aiSay('a','I\'m not sure about that one, and there\'s no game server here for harder questions. Try asking another way, or open the game from one of the Rocket Strike sites.');return false;}
+  const o={...opt};
+  if(AIMODE==='light')o.noResearch=true;
+  else if(AIMODE==='stabilized'&&!opt.hideQuestion&&isTrouble(q,label))o.focus=troubleFocus(q,label);
+  return aiCloud(q,o);
+}
+// The cloud helper (gpt-oss on the game server). It streams its progress: the mini helpers' jobs, each one finishing,
+// then the reply (and in Ultra mode the one fix it picked). Resolves to {ok, fix}.
+async function aiCloud(q,opt){
+  const base=serverBase();opt=opt||{};
   AI_CHAT.push({role:'user',content:q});
-  if(!base){AI_CHAT.pop();orbMood('');if(!opt.hideQuestion)aiSay('a','I\'m not sure about that one, and there\'s no game server here for harder questions. Try asking another way, or open the game from one of the Rocket Strike sites.');return false;}
   aiBusy=true;aiSendEl.disabled=true;orbMood('think');
   let wait=aiDots(),crew=null,ok=false,j=null,status=0;
   try{
     const ctl=new AbortController();const to=setTimeout(()=>ctl.abort(),75000);
-    const r=await fetch(base+'/api/assistant',{method:'POST',headers:{'content-type':'application/json'},signal:ctl.signal,
-      body:JSON.stringify({messages:AI_CHAT.slice(-8),status:aiShareLog?aiStatus():'',log:aiShareLog?logText(80):'',stream:1,research:opt.noResearch?0:1,
-        lang:String(navigator.language||'en').slice(0,2).toLowerCase()})});
+    const body={messages:AI_CHAT.slice(-8),status:aiShareLog?aiStatus():'',log:aiShareLog?logText(80):'',stream:1,research:opt.noResearch?0:1,
+      lang:String(navigator.language||'en').slice(0,2).toLowerCase(),mode:opt.mode||AIMODE};
+    if(opt.focus)body.focus=opt.focus;if(opt.local)body.local=opt.local;if(opt.fixes)body.fixes=opt.fixes;
+    const r=await fetch(base+'/api/assistant',{method:'POST',headers:{'content-type':'application/json'},signal:ctl.signal,body:JSON.stringify(body)});
     status=r.status;
     if(/ndjson/.test(r.headers.get('content-type')||'')&&r.body&&r.body.getReader){
       const rd=r.body.getReader(),dec=new TextDecoder();let buf='';
@@ -2911,7 +2963,7 @@ async function askAI(question,opt){
     if(!opt.hideQuestion)aiSay('a',why==='net'?'I couldn\'t reach the helper. Check your connection and try again.':why==='not_set_up'||status===404?'The AI helper isn\'t set up on this game server yet.':why==='slow_down'?`One moment: you can ask again in ${j.wait||5} s.`:
       why==='busy'?'Lots of questions right now. Try again in a minute.':'I couldn\'t answer right now. Try again in a bit.');}
   aiBusy=false;aiSendEl.disabled=false;orbMood(ok?'happy':'');
-  return ok;
+  return {ok,fix:ok&&j?String(j.fix||''):''};
 }
 function rsaiTag(msg,q){
   const w=h('div','aisrc');const tag=h('span','rsai-tag','⚡ Rocket Strike AI · on your device');w.appendChild(tag);
@@ -3076,6 +3128,7 @@ for(const [label,fn] of [['Run a check',()=>runCheck()],['How do I flip?',()=>as
 const sendQ=()=>{const v=aiInEl.value;if(!v.trim()||aiBusy)return;aiInEl.value='';askAI(v);};
 aiSendEl.addEventListener('click',sendQ);
 document.getElementById('aiCheck').addEventListener('click',()=>runCheck());
+for(const b of document.querySelectorAll('#aiModes button')){b.classList.toggle('on',b.dataset.m===AIMODE);b.addEventListener('click',()=>{if(b.dataset.m!==AIMODE)setAiMode(b.dataset.m);});}
 aiInEl.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendQ();}});
 document.getElementById('aiShare').addEventListener('change',e=>{aiShareLog=e.target.checked;});
 addEventListener('resize',placeOrb);placeOrb();
@@ -3096,16 +3149,30 @@ function testSocket(base){
   });
 }
 let checking=false;
-async function runCheck(){
-  if(checking||aiBusy)return;checking=true;orbMood('think');
-  const lines=[];const box=aiSay('test','Running a check…',true);
-  const add=(icon,k,v)=>{lines.push(`${k}: ${v}`);box.textContent+=`\n${icon} ${k}: ${v}`;aiLogEl.scrollTop=aiLogEl.scrollHeight;};
+// Runs the tests and writes them into the chat. -> {lines, items:[{k,v,ok}], fps}. assets=true adds the Ultra asset
+// checks: is the 3D engine drawing, are the fonts loaded, does our own AI load and answer, are the game files reachable.
+async function collectChecks(assets){
+  const lines=[],items=[];const box=aiSay('test',assets?'Running the Ultra check…':'Running a check…',true);
+  const add=(icon,k,v)=>{lines.push(`${k}: ${v}`);items.push({k,v,ok:icon!=='⚠️'});box.textContent+=`\n${icon} ${k}: ${v}`;aiLogEl.scrollTop=aiLogEl.scrollHeight;placeChat();};
+  let fps=0;
   try{
     add('•','Device',`${IS_TOUCH?'touch screen':'mouse/keyboard'}, ${innerWidth}×${innerHeight}, pixel ratio ${devicePixelRatio||1}`);
     try{const gl=renderer.getContext();const dbg=gl.getExtension('WEBGL_debug_renderer_info');const gpu=dbg?gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER);
-      add('✅','3D graphics',`WebGL ${renderer.capabilities.isWebGL2?'2':'1'} · ${String(gpu).slice(0,60)}`);}catch(e){add('⚠️','3D graphics','could not read ('+e.message+')');}
-    const fps=await measureFps(2000);
+      add(gl.isContextLost&&gl.isContextLost()?'⚠️':'✅','3D graphics',`WebGL ${renderer.capabilities.isWebGL2?'2':'1'} · ${String(gpu).slice(0,60)}${gl.isContextLost&&gl.isContextLost()?' · context LOST':''}`);}catch(e){add('⚠️','3D graphics','could not read ('+e.message+')');}
+    const f0=renderer.info&&renderer.info.render?renderer.info.render.frame:0;
+    fps=await measureFps(2000);
     add(fps>=45?'✅':fps>=25?'•':'⚠️','Frame rate',`${fps} FPS · quality ${GFX.q}, resolution ${Math.round((+GFX.res||1)*100)}%, glow ${GFX.bloom&&GFX.q!=='low'?'on':'off'}${document.hidden?' (tab was hidden)':''}`);
+    if(assets){
+      const f1=renderer.info&&renderer.info.render?renderer.info.render.frame:0;
+      add(f1>f0?'✅':'⚠️','3D engine (three.js)',f1>f0?`loaded and drawing (${f1-f0} frames in 2 s)`:'loaded but not drawing frames');
+      let fonts='unknown';try{fonts=document.fonts?(document.fonts.check('16px "Russo One"')&&document.fonts.check('600 16px Rajdhani')?'loaded':'not loaded (using backup fonts)'):'unknown';}catch(e){}
+      add(fonts==='loaded'?'✅':'•','Fonts',fonts);
+      await Promise.race([rsaiLoad(),new Promise(r=>setTimeout(r,4000))]);
+      const t=rsaiClassify('how do i flip');
+      add(RSAI.state==='ready'&&t&&t.label==='flip'?'✅':'⚠️','Rocket Strike AI',RSAI.state!=='ready'?'not loaded':t&&t.label==='flip'?`loaded and answering (${RSAI.info.labels.length} topics)`:'loaded but answering wrongly');
+      try{const t0=performance.now();const r=await fetch(location.href.split('#')[0],{method:'HEAD',cache:'no-store'});add(r.ok?'✅':'⚠️','Game files',r.ok?`reachable (${Math.round(performance.now()-t0)} ms)`:'HTTP '+r.status);}catch(e){add('⚠️','Game files','not reachable');}
+      add('•','Server address from',savedServer()?'a pasted custom server':SITE_SERVER?'this site\'s setting':'this site');
+    }
     add(navigator.onLine?'✅':'⚠️','Internet',navigator.onLine?'online':'offline');
     const base=serverBase();
     if(!base)add('⚠️','Game server','none on this site');
@@ -3122,12 +3189,79 @@ async function runCheck(){
     add(store==='works'?'✅':'•','Saving settings',store);
     add(MOD.chatRestricted||suspended()?'⚠️':'✅','Chat',suspended()?'suspended':MOD.chatRestricted?'restricted':'fine');
   }catch(e){add('⚠️','Check','stopped early: '+e.message);}
-  checking=false;
-  // diagnosis: ask the helper, with a built-in fallback
-  const q='I ran the Rocket Strike check. Results:\n'+lines.join('\n')+'\nWhat is the diagnosis, and what should I do?';
-  const ok=await askAI(q,{hideQuestion:true,noResearch:true,label:'Here\'s what I found:'});
-  if(!ok)aiSay('a',localDiagnosis(lines));
-  orbMood(ok?'happy':'');
+  return {lines,items,fps};
+}
+// which code the two mini helpers read for each failed test
+const CHECK_CODE={'3D graphics':'WebGLRenderer getContext context lost','Frame rate':'applyGfx quality bloom setPixelRatio GFX res',
+  '3D engine (three.js)':'renderer render animate requestAnimationFrame','Fonts':'fonts Russo Rajdhani googleapis','Rocket Strike AI':'rsaiLoad rs-ai json bin model',
+  'Game files':'assets fetch ASSETS play.html','Internet':'onLine offline','Game server':'serverBase detectServer health loadSiteServer',
+  'Live connection':'WebSocket RoomConn open hello ping','Multiplayer':'connectLobby retryLobby renderServers netState','Game log':'logEv error Frame',
+  'Saving settings':'localStorage setItem','Chat':'chatRestricted suspended strikes captcha'};
+function checkFocus(items,q){
+  const bad=items.filter(x=>!x.ok&&CHECK_CODE[x.k]);
+  const f=bad.slice(0,2).map(x=>({q:CHECK_CODE[x.k]+(x.k==='Game log'&&logProblems()?' '+qWords(logProblems()):''),label:'checking: '+x.k.toLowerCase()}));
+  if(q&&f.length<2)f.push({q:qWords(q)||'error',label:f.length?'second code check':'checking your problem'});
+  if(f.length===1)f.push({q:f[0].q,label:'second code check'});
+  return f;
+}
+async function runCheck(){
+  if(AIMODE==='ultra')return runUltra('');
+  if(checking||aiBusy)return;checking=true;orbMood('think');
+  const res=await collectChecks(false);checking=false;
+  if(AIMODE==='light'||!serverBase()){aiSay('a',localDiagnosis(res.lines));orbMood('happy');return;}   // light: diagnosed on this device
+  const q='I ran the Rocket Strike check. Results:\n'+res.lines.join('\n')+'\nWhat is the diagnosis, and what should I do?';
+  const f=checkFocus(res.items,'');
+  const r=await aiCloud(q,{hideQuestion:true,noResearch:!f.length,focus:f.length?f:undefined,label:'Here\'s what I found:'});
+  if(!r.ok)aiSay('a',localDiagnosis(res.lines));
+  orbMood(r.ok?'happy':'');
+}
+// Ultra: check everything (assets too), let two mini helpers look into the code behind what failed, diagnose, and
+// change exactly one setting (with an Undo button).
+async function runUltra(q){
+  if(checking||aiBusy)return false;checking=true;orbMood('think');
+  const res=await collectChecks(true);checking=false;
+  const fails=res.items.filter(x=>!x.ok),fixes=fixCatalog(res);
+  if(!fails.length&&!q){aiSay('a','**Ultra check:** everything passed ✅, so I didn\'t change anything.');orbMood('happy');return true;}
+  let fix='',ok=false;
+  if(serverBase()){
+    const text='ULTRA check.'+(q?' My problem: '+q:'')+'\nResults:\n'+res.lines.join('\n');
+    const r=await aiCloud(text,{hideQuestion:true,mode:'ultra',focus:checkFocus(res.items,q),fixes:fixes.map(f=>({id:f.id,what:f.what})),label:'Ultra diagnosis:'});
+    ok=r.ok;fix=r.fix;
+  }
+  if(!ok){aiSay('a',localDiagnosis(res.lines));fix=localFix(res,fixes);}
+  applyOneFix(fix,fixes);
+  orbMood('happy');return ok;
+}
+function gfxSet(o){const prev={...GFX};Object.assign(GFX,o);saveGfx();applyGfx();return ()=>{Object.assign(GFX,prev);saveGfx();applyGfx();};}
+// The settings Ultra may change (only ones that make sense right now); it changes one of them at most.
+function fixCatalog(res){
+  const L=[],q=GFX.q,res100=Math.round((+GFX.res||1)*100);
+  if(q!=='low')L.push({id:'quality_low',what:`graphics quality LOW (now ${q.toUpperCase()}): fewer pixels and sparks, glow off`,label:'Graphics quality → LOW',apply:()=>gfxSet({q:'low'})});
+  if(q==='high')L.push({id:'quality_medium',what:'graphics quality MEDIUM (now HIGH)',label:'Graphics quality → MEDIUM',apply:()=>gfxSet({q:'medium'})});
+  if(res100>75)L.push({id:'resolution_75',what:`resolution 75% (now ${res100}%)`,label:'Resolution → 75%',apply:()=>gfxSet({res:0.75})});
+  if(GFX.bloom&&q!=='low')L.push({id:'glow_off',what:'turn the glow (bloom) off',label:'Glow → OFF',apply:()=>gfxSet({bloom:false})});
+  if(savedServer())L.push({id:'server_site',what:'stop using the pasted custom server and use this site\'s server',label:'Game server → this site',apply:()=>{const prev=savedServer();useServer('');return ()=>useServer(prev);}});
+  if(NET.localHost)L.push({id:'server_online',what:'stop running hosted matches on this device; use the online server',label:'Hosted matches → online server',
+    apply:()=>{NET.localHost=false;try{localStorage.removeItem('rs-localhost');}catch(e){}return ()=>{NET.localHost=true;try{localStorage.setItem('rs-localhost','1');}catch(e){}};}});
+  if(serverBase()&&LOCAL.mode!=='online')L.push({id:'reconnect',what:'reconnect to the game server (refreshes the server list)',label:'Reconnected to the game server',apply:()=>{useServer(savedServer());return null;}});
+  return L;
+}
+// the on-device pick when the cloud helper can't answer
+function localFix(res,fixes){
+  const has=id=>fixes.some(f=>f.id===id),bad=k=>res.items.some(x=>x.k===k&&!x.ok);
+  if((bad('Game server')||bad('Live connection'))&&has('server_site'))return 'server_site';
+  if(bad('Live connection')&&has('reconnect'))return 'reconnect';
+  if(res.fps&&res.fps<45){for(const id of ['quality_medium','quality_low','glow_off','resolution_75'])if(has(id))return id;}
+  if(bad('Multiplayer')&&has('reconnect'))return 'reconnect';
+  return '';
+}
+function applyOneFix(id,fixes){
+  const f=fixes.find(x=>x.id===id);
+  if(!f){aiSay('a fix','🔧 **Nothing changed**: none of the settings I\'m allowed to change would help with this.');return;}
+  let undo=null;try{undo=f.apply();}catch(e){aiSay('a fix','🔧 I tried to change **'+f.label+'** but it didn\'t work: '+e.message);return;}
+  logEv('info','Helper (Ultra) changed one setting: '+f.label);
+  const m=aiSay('a fix','🔧 **I changed one thing:** '+f.label+'.');
+  if(typeof undo==='function'){const w=h('div','aisrc');const u=h('a',null,'↩ Undo');u.href='#';u.addEventListener('click',e=>{e.preventDefault();try{undo();}catch(err){}u.replaceWith(h('span','rsai-tag','Undone'));logEv('info','Helper change undone: '+f.label);});w.appendChild(u);m.appendChild(w);placeChat();}
 }
 function localDiagnosis(lines){
   const t=lines.join('\n'),tips=[];
