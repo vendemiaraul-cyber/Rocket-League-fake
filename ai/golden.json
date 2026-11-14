@@ -8,7 +8,7 @@
    3955
   ],
   "top": "greeting",
-  "p": 0.99639
+  "p": 0.99645
  },
  {
   "text": "thanks",
@@ -23,7 +23,7 @@
    8947
   ],
   "top": "thanks",
-  "p": 0.95572
+  "p": 0.93434
  },
  {
   "text": "bye",
@@ -36,7 +36,7 @@
    394
   ],
   "top": "bye",
-  "p": 0.9941
+  "p": 0.99796
  },
  {
   "text": "who are you",
@@ -51,7 +51,7 @@
    15935
   ],
   "top": "about-helper",
-  "p": 0.97775
+  "p": 0.9842
  },
  {
   "text": "what is this game",
@@ -66,7 +66,7 @@
    12721
   ],
   "top": "what-is-game",
-  "p": 0.97023
+  "p": 0.97973
  },
  {
   "text": "who made this game",
@@ -81,7 +81,7 @@
    14166
   ],
   "top": "who-made",
-  "p": 0.98171
+  "p": 0.97525
  },
  {
   "text": "is it free",
@@ -96,7 +96,7 @@
    14205
   ],
   "top": "free-download",
-  "p": 0.96854
+  "p": 0.97516
  },
  {
   "text": "is this safe",
@@ -111,7 +111,7 @@
    12280
   ],
   "top": "safe",
-  "p": 0.97892
+  "p": 0.9736
  },
  {
   "text": "what are the controls",
@@ -126,7 +126,7 @@
    12721
   ],
   "top": "controls-keyboard",
-  "p": 0.95738
+  "p": 0.97023
  },
  {
   "text": "touch controls",
@@ -141,7 +141,7 @@
    1693
   ],
   "top": "controls-touch",
-  "p": 0.99068
+  "p": 0.99159
  },
  {
   "text": "can i use a controller",
@@ -156,7 +156,7 @@
    6163
   ],
   "top": "controls-gamepad",
-  "p": 0.98784
+  "p": 0.98985
  },
  {
   "text": "how do i flip",
@@ -171,7 +171,7 @@
    4149
   ],
   "top": "flip",
-  "p": 0.97418
+  "p": 0.98698
  },
  {
   "text": "how do i jump",
@@ -186,7 +186,7 @@
    4149
   ],
   "top": "jump",
-  "p": 0.98162
+  "p": 0.98294
  },
  {
   "text": "how do i boost",
@@ -201,7 +201,7 @@
    4149
   ],
   "top": "boost",
-  "p": 0.98284
+  "p": 0.97614
  },
  {
   "text": "how do i air roll",
@@ -216,7 +216,7 @@
    4149
   ],
   "top": "air-roll",
-  "p": 0.98324
+  "p": 0.97437
  },
  {
   "text": "how do i fly",
@@ -231,7 +231,7 @@
    4149
   ],
   "top": "aerial",
-  "p": 0.97846
+  "p": 0.98324
  },
  {
   "text": "how does the camera work",
@@ -246,7 +246,7 @@
    4149
   ],
   "top": "ball-camera",
-  "p": 0.97877
+  "p": 0.9765
  },
  {
   "text": "how do i score",
@@ -261,7 +261,7 @@
    4149
   ],
   "top": "score-tips",
-  "p": 0.97873
+  "p": 0.98171
  },
  {
   "text": "how do i defend",
@@ -276,7 +276,7 @@
    4149
   ],
   "top": "defend-tips",
-  "p": 0.98334
+  "p": 0.99012
  },
  {
   "text": "how do i beat the bot",
@@ -291,7 +291,7 @@
    4149
   ],
   "top": "bot-tips",
-  "p": 0.97965
+  "p": 0.98407
  },
  {
   "text": "what happens after a goal",
@@ -306,7 +306,7 @@
    12721
   ],
   "top": "goal-kickoff",
-  "p": 0.98199
+  "p": 0.97886
  },
  {
   "text": "how long is a match",
@@ -321,7 +321,7 @@
    5661
   ],
   "top": "match-length",
-  "p": 0.96764
+  "p": 0.97143
  },
  {
   "text": "how do i play online",
@@ -336,7 +336,7 @@
    4149
   ],
   "top": "multiplayer",
-  "p": 0.97678
+  "p": 0.97178
  },
  {
   "text": "how do i host",
@@ -351,7 +351,7 @@
    4149
   ],
   "top": "host",
-  "p": 0.97258
+  "p": 0.98152
  },
  {
   "text": "how do i join",
@@ -366,7 +366,7 @@
    4149
   ],
   "top": "join",
-  "p": 0.98995
+  "p": 0.98581
  },
  {
   "text": "how do i invite friends",
@@ -381,7 +381,7 @@
    4149
   ],
   "top": "invite-link",
-  "p": 0.98324
+  "p": 0.97969
  },
  {
   "text": "what is the vote",
@@ -396,7 +396,7 @@
    12721
   ],
   "top": "vote-lobby",
-  "p": 0.983
+  "p": 0.98129
  },
  {
   "text": "what is autopilot",
@@ -411,7 +411,7 @@
    12721
   ],
   "top": "autopilot",
-  "p": 0.97931
+  "p": 0.98275
  },
  {
   "text": "i opened two tabs",
@@ -426,7 +426,7 @@
    6963
   ],
   "top": "two-tabs",
-  "p": 0.99095
+  "p": 0.99164
  },
  {
   "text": "where are the settings",
@@ -441,7 +441,7 @@
    7332
   ],
   "top": "settings",
-  "p": 0.98169
+  "p": 0.98549
  },
  {
   "text": "the game lags",
@@ -456,7 +456,7 @@
    2288
   ],
   "top": "lag",
-  "p": 0.98826
+  "p": 0.98256
  },
  {
   "text": "the ball teleports",
@@ -471,7 +471,7 @@
    12753
   ],
   "top": "jitter",
-  "p": 0.97865
+  "p": 0.98617
  },
  {
   "text": "white screen",
@@ -486,7 +486,7 @@
    13042
   ],
   "top": "white-screen",
-  "p": 0.98981
+  "p": 0.97959
  },
  {
   "text": "webgl is not available",
@@ -501,7 +501,7 @@
    3803
   ],
   "top": "webgl",
-  "p": 0.99123
+  "p": 0.98845
  },
  {
   "text": "i cant host",
@@ -516,7 +516,7 @@
    2830
   ],
   "top": "cant-host",
-  "p": 0.98789
+  "p": 0.99041
  },
  {
   "text": "could not create a server",
@@ -531,7 +531,7 @@
    6643
   ],
   "top": "create-failed",
-  "p": 0.98861
+  "p": 0.98887
  },
  {
   "text": "that match isnt open any more",
@@ -546,7 +546,7 @@
    12721
   ],
   "top": "match-closed",
-  "p": 0.98239
+  "p": 0.97625
  },
  {
   "text": "lost connection",
@@ -561,7 +561,7 @@
    12452
   ],
   "top": "lost-connection",
-  "p": 0.99245
+  "p": 0.99052
  },
  {
   "text": "the host left",
@@ -576,7 +576,7 @@
    9081
   ],
   "top": "host-left",
-  "p": 0.99051
+  "p": 0.99126
  },
  {
   "text": "stuck after a goal",
@@ -591,7 +591,7 @@
    11495
   ],
   "top": "stuck-goal",
-  "p": 0.99576
+  "p": 0.98962
  },
  {
   "text": "what does running on mean",
@@ -606,7 +606,7 @@
    12721
   ],
   "top": "status-line",
-  "p": 0.98615
+  "p": 0.97855
  },
  {
   "text": "custom server",
@@ -621,7 +621,7 @@
    7409
   ],
   "top": "custom-server",
-  "p": 0.99042
+  "p": 0.98199
  },
  {
   "text": "customs",
@@ -636,7 +636,7 @@
    638
   ],
   "top": "customs",
-  "p": 0.99735
+  "p": 0.99772
  },
  {
   "text": "graphics settings",
@@ -651,7 +651,7 @@
    5545
   ],
   "top": "graphics",
-  "p": 0.98226
+  "p": 0.97846
  },
  {
   "text": "what are the rules",
@@ -666,7 +666,7 @@
    12721
   ],
   "top": "rules",
-  "p": 0.98277
+  "p": 0.97442
  },
  {
   "text": "what are strikes",
@@ -680,8 +680,8 @@
    9946,
    12721
   ],
-  "top": "strikes",
-  "p": 0.58774
+  "top": "rules",
+  "p": 0.52472
  },
  {
   "text": "my chat is restricted",
@@ -696,7 +696,7 @@
    6677
   ],
   "top": "chat-restricted",
-  "p": 0.9794
+  "p": 0.96971
  },
  {
   "text": "how do i report someone",
@@ -711,7 +711,7 @@
    4149
   ],
   "top": "report",
-  "p": 0.97843
+  "p": 0.97071
  },
  {
   "text": "how do i chat",
@@ -726,7 +726,7 @@
    4149
   ],
   "top": "chat",
-  "p": 0.97928
+  "p": 0.97443
  },
  {
   "text": "how do i change my name",
@@ -741,7 +741,7 @@
    4149
   ],
   "top": "name",
-  "p": 0.96786
+  "p": 0.97734
  },
  {
   "text": "my settings are gone",
@@ -756,7 +756,7 @@
    4775
   ],
   "top": "saved-data",
-  "p": 0.97545
+  "p": 0.98696
  },
  {
   "text": "discord",
@@ -771,7 +771,7 @@
    9712
   ],
   "top": "discord",
-  "p": 0.99921
+  "p": 0.99967
  },
  {
   "text": "what is the log",
@@ -786,7 +786,7 @@
    12721
   ],
   "top": "log",
-  "p": 0.98463
+  "p": 0.98877
  },
  {
   "text": "run a check",
@@ -801,7 +801,7 @@
    10571
   ],
   "top": "check",
-  "p": 0.99783
+  "p": 0.99618
  },
  {
   "text": "what are the modes",
@@ -816,7 +816,7 @@
    12721
   ],
   "top": "helper-modes",
-  "p": 0.9731
+  "p": 0.97756
  },
  {
   "text": "which site should i use",
@@ -831,7 +831,7 @@
    1091
   ],
   "top": "sites",
-  "p": 0.97502
+  "p": 0.98246
  },
  {
   "text": "what is the capital of france",
@@ -846,7 +846,7 @@
    12721
   ],
   "top": "other",
-  "p": 0.97539
+  "p": 0.97244
  },
  {
   "text": "how do i fliip",
@@ -861,7 +861,7 @@
    4149
   ],
   "top": "flip",
-  "p": 0.84522
+  "p": 0.97594
  },
  {
   "text": "COME FACCIO IL FLIP??",
@@ -876,7 +876,7 @@
    8011
   ],
   "top": "flip",
-  "p": 0.98125
+  "p": 0.98613
  },
  {
   "text": "my game lags on ipad",
@@ -891,7 +891,7 @@
    101
   ],
   "top": "lag",
-  "p": 0.95809
+  "p": 0.95061
  },
  {
   "text": "what is the meaning of life",
@@ -906,7 +906,7 @@
    12721
   ],
   "top": "other",
-  "p": 0.16323
+  "p": 0.2086
  },
  {
   "text": "",
