@@ -1213,6 +1213,7 @@ function carBall(c){
   cl.set(clamp(lp.x,-HB_H.x,HB_H.x),clamp(lp.y,-HB_H.y,HB_H.y),clamp(lp.z,-HB_H.z,HB_H.z));
   dl.subVectors(lp,cl);let d=dl.length();
   if(d>=BALL_R)return;
+  BALL.touchAt=performance.now();
   if(d<1e-4){dl.set(0,1,0);d=0;}else dl.divideScalar(d);
   nW.copy(dl).applyQuaternion(c.q);
   BALL.pos.addScaledVector(nW,BALL_R-d+0.001);
@@ -1438,19 +1439,32 @@ function netCar(c,peer,s,ts,recvAt,dt){
 const ballPast=V(),ballPastV=V(),ballPastS=V();let ballPastOn=false;
 // where to draw the ball this frame
 function updateBallDisplay(dt){
-  if(isAuth()||!M){BALL.disp.copy(BALL.pos);BALL.off.set(0,0,0);return;}
+  if(!M||LOCAL.mode!=='online'){BALL.disp.copy(BALL.pos);BALL.off.set(0,0,0);return;}
   BALL.off.multiplyScalar(Math.exp(-dt/0.12));
-  tv.copy(BALL.pos).add(BALL.off);                    // our prediction, with corrections eased in
+  tv.copy(BALL.pos).add(BALL.off);                    // where the ball really is now, with corrections eased in
+  if(isAuth()){BALL.disp.copy(tv);return;}
+  // Near the ball you see it where it is now, so your touches feel instant. Away from it (or when
+  // spectating) you see it in step with the other cars, so their touches line up instead of the ball
+  // being pulled back after someone else hits it.
   let w=0;ballPast.copy(tv);const had=ballPastOn;ballPastOn=false;
   if(BALL.snaps.length&&NET.hostPeer&&M.ph!=='countdown'&&!BALL.scored&&sampleSnaps(BALL.snaps,performance.now()-netDelay(NET.hostPeer),3,ballPast,ballPastV)){
     ballPast.y=Math.max(BALL_R,ballPast.y);
     if(!had||ballPastS.distanceTo(ballPast)>8)ballPastS.copy(ballPast);else ballPastS.lerp(ballPast,1-Math.exp(-25*dt));ballPast.copy(ballPastS);ballPastOn=true;
-    w=me.active?sstep(9,22,me.pos.distanceTo(BALL.disp)):1;   // far from the ball: show it in step with the other cars
+    w=me.active?sstep(9,22,me.pos.distanceTo(BALL.disp)):1;
   }
-  const k=1-Math.exp(-4*dt);BALL.wPast=BALL.wPast===undefined?w:BALL.wPast+(w-BALL.wPast)*k;
+  if(BALL.wPast===undefined)BALL.wPast=w;
+  let step=(w-BALL.wPast)*(1-Math.exp(-4*dt));
+  // Moving to the in-step view shifts the ball back along its path. Do it slowly enough that the
+  // ball keeps moving forward (at least 40% of its speed) instead of sliding backwards.
+  if(step>0){const gap=tv.distanceTo(ballPast);if(gap>0.05)step=Math.min(step,0.6*BALL.vel.length()*dt/gap);}
+  BALL.wPast=clamp(BALL.wPast+step,0,1);
   BALL.disp.copy(tv).lerp(ballPast,BALL.wPast);
 }
-function reportHit(aerial){NET.hitN++;NET.hit={n:NET.hitN,b:encodeBall(),a:aerial?1:0};NET.graceUntil=performance.now()+700;}
+// one-way time for an update to travel between two players through the server, in seconds
+const tripTime=otherRt=>((NET.gr&&NET.gr.rtt||60)+(otherRt>0?otherRt:60))/2000;
+// run the ball forward by t seconds with the real physics (bounces included)
+function advanceBall(t){t=clamp(t,0,0.3);if(t<=0)return;const n=Math.ceil(t*120),h=t/n;for(let i=0;i<n;i++)stepBall(h);}
+function reportHit(aerial){NET.hitN++;NET.hit={n:NET.hitN,b:encodeBall(),a:aerial?1:0};NET.graceUntil=performance.now()+1200;}
 const physCars=()=>{const a=[];if(me.active)a.push(me);if(isAuth()&&botCar.active)a.push(botCar);return a;};
 const BAD_CH=new RegExp('[\\u0000-\\u001f\\u007f-\\u009f\\u00ad\\u061c\\u180e\\u200b-\\u200f\\u2028-\\u202e\\u2060-\\u206f\\ufeff\\ue000-\\uf8ff]','g');
 const cleanText=(s,n)=>String(s==null?'':s).replace(BAD_CH,'').slice(0,n).trim();
@@ -1504,8 +1518,15 @@ function hostTick(dt){
       if(!h||!Array.isArray(h.b)||!(h.n>(NET.ackMap.get(p.peer)||0)))continue;
       NET.ackMap.set(p.peer,h.n);const r=rosterEntry(p.peer);
       if(!r||BALL.scored||M.ph==='countdown')continue;
-      const a=clamp((Date.now()-p.updatedAt)/1000,0,0.25);const b=h.b.map(Number);if(!b.every(isFinite))continue;
-      BALL.pos.set(b[0]+b[3]*a,Math.max(BALL_R,b[1]+b[4]*a),b[2]+b[5]*a);BALL.vel.set(b[3],b[4]+BALL_G*a,b[5]);
+      const b=h.b.map(Number);if(b.length<6||!b.every(isFinite))continue;
+      // the touch happened a trip-time ago on their screen: start from it and run the ball forward to now
+      const trip=(Date.now()-p.updatedAt)/1000+tripTime(+p.presence.rt||0);
+      tv2.copy(BALL.pos).add(BALL.off);cTmp.copy(BALL.pos);BALL.tmpV=(BALL.tmpV||V()).copy(BALL.vel);
+      BALL.pos.set(b[0],Math.max(BALL_R,b[1]),b[2]);BALL.vel.set(b[3],b[4],b[5]);advanceBall(trip);
+      // Two touches at once (say at kickoff): if the ball was already hit here in the time their
+      // touch was travelling and the two now disagree a lot, the earlier touch (this one) wins.
+      if(BALL.touchAt&&performance.now()-BALL.touchAt<trip*1000+250&&cTmp.distanceTo(BALL.pos)>6){BALL.pos.copy(cTmp);BALL.vel.copy(BALL.tmpV);continue;}
+      if(tv2.distanceTo(BALL.pos)<25)BALL.off.subVectors(tv2,BALL.pos);else BALL.off.set(0,0,0);   // glide to it rather than teleport
       GAME.lastTouch={team:r[1],name:peerName(p),aerial:!!h.a};BALL.flare=0.6;
     }
   }
@@ -1786,7 +1807,7 @@ function netTick(dt){
   if(!NET.isHost){
     const hp=ps.find(p=>!p.sameTab&&p.presence&&p.presence.host&&p.presence.g&&typeof p.presence.g==='object');
     if(hp){M=hp.presence.g;NET.hostAge=clamp((Date.now()-hp.updatedAt)/1000,0,0.5);NET.hostSeenAt=performance.now();
-      NET.hostPeer=hp.peer;NET.hostTs=hp.presence.ts;NET.hostRecv=hp.recvAt;}
+      NET.hostPeer=hp.peer;NET.hostTs=hp.presence.ts;NET.hostRecv=hp.recvAt;NET.hostRt=+hp.presence.rt||0;}
     else if(performance.now()-NET.hostSeenAt>(M?4000:9000)){leaveOnline('The host left, so the server closed.');return;}
   }
   pollChat(ps);trackTick(ps);hostReportsTick(ps);sanctionsTick();
@@ -1797,7 +1818,7 @@ function netTick(dt){
 function netSend(){
   if(LOCAL.mode!=='online'||!NET.gr)return;
   me.nick=nick();
-  const pr={ts:Math.round(performance.now()),nm:nick(),col:colourIdx,c:me.active?encodeCar(me):null,h:NET.hit,v:LOCAL.vote,ch:NET.chatOut,rp:NET.report||null};
+  const pr={ts:Math.round(performance.now()),rt:NET.gr?Math.round(NET.gr.rtt||0):0,nm:nick(),col:colourIdx,c:me.active?encodeCar(me):null,h:NET.hit,v:LOCAL.vote,ch:NET.chatOut,rp:NET.report||null};
   if(NET.isHost&&M){M.tk=(M.tk+1)%1e6;M.b=encodeBall();M.bot=botCar.active?encodeCar(botCar):null;M.ack=[...NET.ackMap];M.hn=nick();
     M.rem=r2(M.rem);M.lr=r2(M.lr);M.clk=r2(M.clk);pr.g=M;pr.host=1;}
   NET.gr.presence(pr).catch(e=>logEv('warn','Presence update failed: '+((e&&(e.code||e.message))||e)));
@@ -1812,11 +1833,10 @@ function clientBall(){
   let acked=0;for(const a of M.ack||[])if(a[0]===NET.myPeer)acked=a[1];
   if(performance.now()<NET.graceUntil&&acked<NET.hitN)return;
   // the update is already old by the time we use it: run the ball forward by that much (plus half the ping)
-  const lead=clamp(NET.hostAge+(NET.gr&&NET.gr.rtt?NET.gr.rtt/2000:0.04),0,0.25);
   tv2.copy(BALL.pos).add(BALL.off);
   BALL.pos.set(b[0],Math.max(BALL_R,b[1]),b[2]);BALL.vel.set(b[3],b[4],b[5]);
-  if(M.ph!=='countdown'&&!BALL.scored&&lead>0){const n=Math.ceil(lead*120),h=lead/n;for(let i=0;i<n;i++)stepBall(h);}
-  if(M.ph==='countdown'||tv2.distanceTo(BALL.pos)>10)BALL.off.set(0,0,0);
+  if(M.ph!=='countdown'&&!BALL.scored)advanceBall(NET.hostAge+tripTime(NET.hostRt));
+  if(M.ph==='countdown'||tv2.distanceTo(BALL.pos)>25)BALL.off.set(0,0,0);
   else BALL.off.subVectors(tv2,BALL.pos);              // keep drawing it where it was, then ease to the corrected spot
 }
 function syncRemotes(dt){
