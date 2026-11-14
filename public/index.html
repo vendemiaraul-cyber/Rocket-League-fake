@@ -37,6 +37,7 @@ nav .wrap{display:flex;align-items:center;justify-content:space-between;height:6
 .btn.primary{background:linear-gradient(135deg,#ff9a3c,#ff5a12);box-shadow:0 10px 30px rgba(255,100,30,.35),inset 0 1px 0 rgba(255,255,255,.35)}
 .btn.ghost{background:rgba(124,198,255,.08);border:1px solid rgba(124,198,255,.35);color:var(--blue2)}
 .btn.sm{padding:10px 22px;font-size:14px}
+.btn.discord{background:#5865f2;box-shadow:0 10px 30px rgba(88,101,242,.35)}
 
 /* hero */
 .hero{position:relative;overflow:hidden;border-bottom:1px solid var(--line)}
@@ -281,12 +282,15 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
   <div class="wrap">
     <h2 class="display">Ready? Kick off.</h2>
     <p class="sub">Open the game, host a match and send your friends the link.</p>
-    <a class="btn primary play" href="play.html">PLAY NOW</a>
+    <div class="cta" style="justify-content:center">
+      <a class="btn primary play" href="play.html">PLAY NOW</a>
+      <a class="btn discord" href="https://discord.gg/NyYFuKbhK" target="_blank" rel="noopener noreferrer">JOIN OUR DISCORD SERVER!</a>
+    </div>
   </div>
 </div>
 
 <footer>
-  <div class="wrap"><span>Rocket Strike · rocket-car football in your browser</span><span id="hostedOn"></span></div>
+  <div class="wrap"><span>Rocket Strike · rocket-car football in your browser · <a href="https://discord.gg/NyYFuKbhK" target="_blank" rel="noopener noreferrer">Discord</a></span><span id="hostedOn"></span></div>
 </footer>
 
 <script>

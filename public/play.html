@@ -179,6 +179,26 @@ body.spect .ingame .boost,body.spect .camtag{display:none}
 @keyframes pxBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-2.5px)}}
 @keyframes pxEye{0%,92%{opacity:1}93%,96%{opacity:.15}97%,100%{opacity:1}}
 @media (prefers-reduced-motion:reduce){#proxyCard .aura,#proxyCard .stick,#proxyCard .eye{animation:none}}
+.setsec{display:flex;flex-direction:column;gap:8px;padding:10px 0;border-top:1px solid rgba(255,255,255,.1)}
+.setsec:first-of-type{border-top:0;padding-top:0}
+.setsec h4{margin:0;font:700 11px 'Rajdhani',sans-serif;letter-spacing:.22em;color:#9fb6e0}
+.setrow{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.setrow>span{font-weight:600;color:#dfe8fb}
+.seg{display:inline-flex;border:1px solid rgba(255,255,255,.22);border-radius:999px;overflow:hidden}
+.seg button{background:none;border:0;color:#cfd9f2;font:700 11px 'Rajdhani',sans-serif;letter-spacing:.14em;padding:6px 11px;cursor:pointer}
+.seg button.on{background:#2f6bff;color:#fff}
+.seg button:focus-visible,.discordbtn:focus-visible{outline:2px solid #7cc6ff;outline-offset:2px}
+.discordbtn{display:flex;align-items:center;justify-content:center;gap:10px;text-decoration:none;color:#fff;background:#5865f2;border-radius:12px;padding:12px 14px;font:400 15px 'Russo One',Impact,sans-serif;letter-spacing:.06em}
+.discordbtn svg{width:22px;height:22px;flex:none}
+.proofgrid{display:grid;grid-template-columns:1fr auto;gap:6px 10px;align-items:center}
+.proofgrid .pill{justify-self:end}
+.linklist{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px}
+.linklist li{display:flex;flex-direction:column;gap:1px}
+.linklist b{font-size:12px;color:#fff}
+.linklist a,.linklist code{font-size:11.5px;color:#9fd0ff;word-break:break-all;font-family:ui-monospace,Menlo,monospace}
+#fpsMeter{position:fixed;left:8px;top:8px;z-index:30;font:700 11px ui-monospace,Menlo,monospace;color:#9ff0c4;background:rgba(0,0,0,.45);padding:3px 7px;border-radius:6px;pointer-events:none}
+#fpsMeter[hidden]{display:none}
+#setBtn{align-self:center}
 .menulinks{display:flex;justify-content:center;gap:18px;align-items:center}.menulinks a.linkbtn{text-decoration:none}
 .mpstatus{display:flex;align-items:center;gap:8px;font-weight:600;font-size:13px;color:#cfdcf6;line-height:1.3}
 .spin{width:12px;height:12px;border-radius:50%;border:2px solid rgba(255,255,255,.25);border-top-color:#7cc6ff;animation:spin .8s linear infinite;flex:none}
@@ -320,11 +340,13 @@ body.touch #playersBtn{transform:translateX(calc(-50% - 30px))}
     <div class="lbl">PAINT · <b id="colName">COBALT</b></div>
     <div class="swatches" id="swatches"></div>
     <div class="btnrow"><button class="btn primary" id="startBtn">PLAY VS BOT</button><button class="btn ghost" id="mpBtn">MULTIPLAYER</button></div>
+    <button class="btn ghost sm" id="setBtn" type="button">SETTINGS</button>
     <div class="menulinks"><a class="linkbtn" id="homeLink" href="./">&larr; HOME</a><button class="linkbtn logbtn" type="button">ERROR LOG <span class="logcount" hidden></span></button></div>
     <div class="hosted small"><span class="hdot" id="menuHostDot"></span><span id="menuHostText">Checking where the game is running…</span></div>
     <div class="keys" id="keysHint">WASD drive · SPACE jump, again to flip · SHIFT boost · Q/E air roll · C camera · ENTER chat</div>
   </div>
 </div>
+<div id="fpsMeter" hidden>-- FPS</div>
 <div id="mp" class="screen">
   <div class="card mpcard">
     <div class="mphead"><h2>MULTIPLAYER</h2><span class="lbl">SERVER LIST</span></div>
@@ -472,8 +494,22 @@ composer.addPass(new RenderPass(scene,camera));
 const bloom=new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),0.8,0.55,0.82);
 composer.addPass(bloom);
 composer.addPass(new OutputPass());
+// ---- graphics settings (saved in this browser) ----
+const GFX={q:IS_TOUCH?'medium':'high',bloom:true,res:1,fps:false};
+try{Object.assign(GFX,JSON.parse(localStorage.getItem('rs-gfx')||'{}'));}catch(e){}
+const gfxFx=()=>({low:0.4,medium:0.7,high:1}[GFX.q]||1);   // how many sparks and particles to draw
+function saveGfx(){try{localStorage.setItem('rs-gfx',JSON.stringify(GFX));}catch(e){}}
+function applyGfx(){
+  const base=Math.min(window.devicePixelRatio||1,IS_TOUCH?1.5:1.75);
+  const pr=Math.max(0.5,base*({low:0.6,medium:0.8,high:1}[GFX.q]||1)*(+GFX.res||1));
+  renderer.setPixelRatio(pr);composer.setPixelRatio(pr);renderer.setSize(innerWidth,innerHeight);composer.setSize(innerWidth,innerHeight);
+  bloom.enabled=!!GFX.bloom&&GFX.q!=='low';
+  if(typeof updatePtScale==='function')updatePtScale();
+  const fm=document.getElementById('fpsMeter');if(fm)fm.hidden=!GFX.fps;
+}
 const ptScale={value:500};
 function updatePtScale(){ptScale.value=renderer.domElement.height/(2*Math.tan(THREE.MathUtils.degToRad(camera.fov)/2));}
+applyGfx();
 
 /* ============================== lights ============================== */
 scene.add(new THREE.HemisphereLight(0x9ab8ff,0x22150f,0.6));
@@ -1079,7 +1115,7 @@ function explode(E,team,out){
   const P=T.pal;
   for(const r of EX.rays){randDirOut(r.dir,out);r.m.position.copy(E);r.m.quaternion.setFromUnitVectors(V(0,1,0),r.dir);
     r.len=rr(22,58);r.w=rr(0.25,0.9);const c=P[(rnd()*5)|0];r.m.material.color.setRGB(c[0]*4,c[1]*4,c[2]*4);r.m.visible=true;}
-  const nS=IS_TOUCH?1000:1500;
+  const nS=Math.round((IS_TOUCH?1000:1500)*gfxFx());
   for(let i=0;i<nS;i++){randDirOut(tv,out);const sp=16+56*Math.pow(rnd(),2);const c=P[(rnd()*P.length)|0];const I=rr(3,5.5);
     fx.emit(E.x+rr(-1,1),E.y+rr(-1,1),E.z+rr(-1,1),tv.x*sp,tv.y*sp,tv.z*sp,rr(1.1,3.2),rr(0.35,1.1),0.05,[c[0]*I,c[1]*I,c[2]*I],[c[0]*0.25,c[1]*0.2,c[2]*0.4],rr(1.2,2.3),-6);}
   for(let i=0;i<220;i++){randDirOut(tv,out);const sp=rr(4,17);
@@ -1573,11 +1609,12 @@ function peerColour(p){const i=(p&&p.presence&&p.presence.col|0)%COLOURS.length;
 /* ---- host logic ---- */
 function roomPeers(){return LOCAL.mode==='online'&&NET.gr?NET.gr.peers().filter(p=>p.kind==='viewer'):[];}
 function hostStartMatch(peerIds){
-  const list=peerIds.slice(0,6);const teams=[[],[]];
+  const cfg=M.cfg||{};
+  const list=peerIds.slice(0,cfg.max||6);const teams=[[],[]];
   list.forEach((p,i)=>teams[i%2].push(p));
-  if(teams[0].length!==teams[1].length){const t=teams[0].length<teams[1].length?0:1;teams[t].push('bot');}
+  if(teams[0].length!==teams[1].length&&cfg.bot!==0){const t=teams[0].length<teams[1].length?0:1;teams[t].push('bot');}
   const ro=[];for(let t=0;t<2;t++)teams[t].forEach((peer,slot)=>ro.push([peer,t,slot,teams[t].length]));
-  M.ro=ro;M.sc=[0,0];M.clk=120;M.gl=null;hostKickoff();
+  M.ro=ro;M.sc=[0,0];M.clk=cfg.len||120;M.gl=null;hostKickoff();
 }
 function hostKickoff(){
   M.kick++;M.ph='countdown';M.rem=2.4;M.gl=null;GAME.lastTouch=null;
@@ -1691,7 +1728,7 @@ async function detectServer(){
     const r=await fetch(base+'/api/health',{cache:'no-store',signal:ctl.signal});clearTimeout(to);
     let j=null;try{j=await r.json();}catch(e){}
     if(j&&j.reason==='not_linked'){HOSTING.notLinked=true;return false;}
-    if(!r.ok||!(j&&j.ok&&j.platform==='cloudflare'))return false;HOSTING.notLinked=false;NET.serverRun=j.match==='server';
+    if(!r.ok||!(j&&j.ok&&j.platform==='cloudflare'))return false;HOSTING.notLinked=false;NET.serverAvail=j.match==='server';NET.serverRun=NET.serverAvail;
     HOSTING.server={name:'Cloudflare '+(j.runtime==='workers'||!j.runtime?'Workers':j.runtime),sameSite:base===location.origin,via:j.via||''};return true;
   }catch(e){return false;}
 }
@@ -1857,7 +1894,8 @@ function updateProxyCard(){
 }
 function openMultiplayer(){UI.menu.classList.remove('on');document.getElementById('mp').classList.add('on');NET.mpOpenedAt=GAME.realT;renderServers();}
 function closeMultiplayer(){document.getElementById('mp').classList.remove('on');UI.menu.classList.add('on');}
-const randCode=()=>'rs-'+Math.random().toString(36).slice(2,8);
+// rs-… matches are run by the online server; rd-… matches are run by the host's own device (Settings → Custom server)
+const randCode=()=>(NET.localHost?'rd-':'rs-')+Math.random().toString(36).slice(2,8);
 async function hostGame(){
   if(!NET.room||!canGoOnline())return;
   try{const code=randCode();const gr=await openRoom(code);enterOnline(gr,code,true);}
@@ -1871,11 +1909,12 @@ async function joinGame(code){
 }
 function enterOnline(gr,code,host){
   logEv('info',(host?'Hosting ':'Joined ')+code);
+  NET.serverRun=!!NET.serverAvail&&!/^rd-/.test(code);
   NET.gr=gr;NET.code=code;NET.isHost=host;NET.hitN=0;NET.hit=null;NET.ackMap.clear();NET.hostTick=-1;NET.hostSeenAt=performance.now();NET.joinedAt=performance.now();
   NET.chatOut=[];NET.chatSeen.clear();NET.lastPeerSig='';NET.lastAdvert=-9;
   LOCAL.mode='online';LOCAL.vote=null;LOCAL.lastPhase=null;LOCAL.lastKick=-1;LOCAL.lastGoalN=0;LOCAL.specView=-1;
   document.getElementById('chatLog').textContent='';
-  M=host&&!NET.serverRun?newM(true):null;if(M){M.hn=nick();M.code=code;}
+  M=host&&!NET.serverRun?newM(true):null;if(M){M.hn=nick();M.code=code;if(/^rd-/.test(code))M.cfg={...CUSTOMS};}
   NET.startN=0;NET.snList=[];NET.snId=0;NET.kickList=[];NET.apOn=false;
   if(host)LOCAL.lastGoalN=0;
   UI.menu.classList.remove('on');document.getElementById('mp').classList.remove('on');
@@ -1894,7 +1933,7 @@ function leaveOnline(reason){
   const gr=NET.gr;NET.gr=null;
   try{gr&&gr.leave().catch(()=>{});}catch(e){}
   if(NET.isHost&&NET.room)NET.room.presence({srv:null}).catch(()=>{});
-  NET.isHost=false;for(const c of remotes.values())disposeCar(c);remotes.clear();
+  NET.isHost=false;NET.serverRun=!!NET.serverAvail;for(const c of remotes.values())disposeCar(c);remotes.clear();
   toMenu();if(NET.room)openMultiplayer();if(reason)toast(reason);
 }
 function netTick(dt){
@@ -1925,7 +1964,7 @@ function netSend(){
     M.rem=r2(M.rem);M.lr=r2(M.lr);M.clk=r2(M.clk);pr.g=M;pr.host=1;}
   NET.gr.presence(pr).catch(e=>logEv('warn','Presence update failed: '+((e&&(e.code||e.message))||e)));
   if(NET.isHost&&NET.room&&GAME.realT-NET.lastAdvert>1){NET.lastAdvert=GAME.realT;
-    NET.room.presence({srv:{code:NET.code,nm:nick(),n:NET.gr.peers().length,ph:M?M.ph:'lobby',pf:(HOSTING.server&&HOSTING.server.name)||'Cloudflare Workers'}}).catch(()=>{});}
+    NET.room.presence({srv:{code:NET.code,nm:nick(),n:NET.gr.peers().length,ph:M?M.ph:'lobby',pf:/^rd-/.test(NET.code)?'the host\'s device':(HOSTING.server&&HOSTING.server.name)||'Cloudflare Workers'}}).catch(()=>{});}
 }
 function clientBall(){
   if(isAuth()||!M||!Array.isArray(M.b))return;
@@ -2514,7 +2553,7 @@ document.getElementById('inviteBtn').addEventListener('click',async()=>{
   catch(e){openModal(box=>{box.append(h('h3',null,'Invite link'),h('p','muted','Copy this link and send it to your friends:'));const i=h('input');i.value=link;i.readOnly=true;i.addEventListener('focus',()=>i.select());const ok=h('button','btn primary','DONE');ok.addEventListener('click',closeModal);box.append(i,ok);});}
 });
 // opened from an invite link: join that match once the server list is in
-const JOIN_CODE=(()=>{try{const j=(new URLSearchParams(location.search).get('join')||'').toLowerCase().replace(/^rs-/,'');return /^[a-z0-9]{3,12}$/.test(j)?'rs-'+j:'';}catch(e){return '';}})();
+const JOIN_CODE=(()=>{try{const j=(new URLSearchParams(location.search).get('join')||'').toLowerCase().replace(/^rs-/,'');return /^rd-[a-z0-9]{3,12}$/.test(j)?j:/^[a-z0-9]{3,12}$/.test(j)?'rs-'+j:'';}catch(e){return '';}})();
 let joinTried=false;
 function tryInviteJoin(){
   if(!JOIN_CODE||joinTried||LOCAL.mode!=='menu'||NET.netState!=='ready')return;
@@ -2525,6 +2564,86 @@ function tryInviteJoin(){
 }
 document.getElementById('apBtn').addEventListener('click',()=>{if(!NET.isHost)return;NET.apOn=!NET.apOn;
   sysChat(NET.apOn?'Autopilot is on: the server drives the cars of players who step away.':'Autopilot is off: cars of players who step away leave the field until they\'re back.');});
+/* ---- settings ---- */
+NET.localHost=(()=>{try{return localStorage.getItem('rs-localhost')==='1';}catch(e){return false;}})();
+const CUSTOMS={len:120,max:6,bot:1,ub:0};
+try{Object.assign(CUSTOMS,JSON.parse(localStorage.getItem('rs-customs')||'{}'));}catch(e){}
+function saveCustoms(){try{localStorage.setItem('rs-customs',JSON.stringify(CUSTOMS));}catch(e){}}
+const DISCORD_URL='https://discord.gg/NyYFuKbhK',SOURCE_URL='https://github.com/vendemiaraul-cyber/Rocket-League-fake';
+const DISCORD_SVG='<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#fff" d="M19.6 5.3A16.6 16.6 0 0 0 15.5 4l-.5 1a15.3 15.3 0 0 0-6 0L8.5 4a16.6 16.6 0 0 0-4.1 1.3C1.8 9.2 1.1 13 1.4 16.7a16.8 16.8 0 0 0 5.1 2.6l1.1-1.7a10.8 10.8 0 0 1-1.7-.8l.4-.3a11.9 11.9 0 0 0 11.4 0l.4.3c-.5.3-1.1.6-1.7.8l1.1 1.7a16.7 16.7 0 0 0 5.1-2.6c.4-4.3-.7-8-2.9-11.4zM8.7 14.4c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2zm6.6 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2z"/></svg>';
+function seg(options,value,onPick){
+  const w=h('div','seg');
+  for(const [v,label] of options){const b=h('button',v===value?'on':'',label);b.type='button';
+    b.addEventListener('click',()=>{for(const x of w.children)x.classList.remove('on');b.classList.add('on');onPick(v);});w.appendChild(b);}
+  return w;
+}
+function row(label,ctrl){const r=h('div','setrow');r.append(h('span',null,label),ctrl);return r;}
+function section(title){const s=h('div','setsec');s.appendChild(h('h4',null,title));return s;}
+function openSettings(){
+  openModal(box=>{
+    box.appendChild(h('h3',null,'Settings'));
+    // community
+    const com=section('COMMUNITY');
+    const a=h('a','discordbtn');a.href=DISCORD_URL;a.target='_blank';a.rel='noopener noreferrer';a.innerHTML=DISCORD_SVG;a.appendChild(document.createTextNode('Join our Discord server!'));
+    com.appendChild(a);box.appendChild(com);
+    // graphics
+    const g=section('GRAPHICS');
+    g.appendChild(row('Quality',seg([['low','LOW'],['medium','MEDIUM'],['high','HIGH']],GFX.q,v=>{GFX.q=v;saveGfx();applyGfx();})));
+    g.appendChild(row('Resolution',seg([[0.75,'75%'],[0.9,'90%'],[1,'100%']],+GFX.res||1,v=>{GFX.res=v;saveGfx();applyGfx();})));
+    g.appendChild(row('Glow (bloom)',seg([[true,'ON'],[false,'OFF']],!!GFX.bloom,v=>{GFX.bloom=v;saveGfx();applyGfx();})));
+    g.appendChild(row('Show FPS',seg([[true,'ON'],[false,'OFF']],!!GFX.fps,v=>{GFX.fps=v;saveGfx();applyGfx();})));
+    g.appendChild(h('p','muted','Lower quality draws fewer sparks and pixels, which helps phones and tablets run smoothly. Low also turns the glow off.'));
+    box.appendChild(g);
+    // custom server
+    const cs=section('CUSTOM SERVER');
+    cs.appendChild(h('p','muted',NET.localHost?'Matches you host run on this device, with your customs.':'Use a server someone gave you, or run the matches you host on this device.'));
+    const r1=h('div','btnrow');
+    const paste=h('button','btn sm ghost','PASTE A SERVER LINK');paste.addEventListener('click',()=>{closeModal();openServerPicker();});
+    r1.appendChild(paste);
+    if(!NET.localHost){const dev=h('button','btn sm primary','RUN ON MY DEVICE');dev.addEventListener('click',confirmRunOnDevice);r1.appendChild(dev);}
+    else{const cu=h('button','btn sm primary','CUSTOMS');cu.addEventListener('click',openCustoms);
+      const back=h('button','btn sm ghost','USE THE ONLINE SERVER');back.addEventListener('click',()=>{NET.localHost=false;try{localStorage.removeItem('rs-localhost');}catch(e){}toast('Matches you host will run on the online server.');openSettings();});
+      r1.append(cu,back);}
+    cs.appendChild(r1);box.appendChild(cs);
+    // proof
+    const pr=section('PROOF');
+    pr.appendChild(h('p','muted','Rocket Strike is one open web page that runs inside your browser. Here is everything it does and every link it uses, so you can check for yourself.'));
+    const grid=h('div','proofgrid');
+    for(const [k,v,cls] of [['Viruses or malware in the code','0','ok'],['Downloads or installs','0','ok'],['Ads and trackers','0','ok'],['Passwords or payment asked','0','ok']]){grid.append(h('span',null,k),h('span','pill '+cls,v));}
+    pr.appendChild(grid);
+    pr.appendChild(h('p','muted','Your name, paint, settings and chat strikes are saved only in this browser. Want a second opinion? Scan any of the links below on VirusTotal.'));
+    const ul=h('ul','linklist');
+    const links=[['This site',location.origin],['Game server',serverBase()||'none (playing offline against the bot)'],['3D engine (three.js)','https://cdn.jsdelivr.net/npm/three@0.165.0/'],
+      ['Fonts (Google Fonts)','https://fonts.googleapis.com'],['Source code (anyone can read it)',SOURCE_URL],['Discord server',DISCORD_URL],['Virus check (VirusTotal)','https://www.virustotal.com/gui/home/url']];
+    for(const [label,url] of links){const li=h('li');li.appendChild(h('b',null,label));
+      if(/^https?:\/\//.test(url)){const l=h('a',null,url);l.href=url;l.target='_blank';l.rel='noopener noreferrer';li.appendChild(l);}else li.appendChild(h('code',null,url));ul.appendChild(li);}
+    pr.appendChild(ul);box.appendChild(pr);
+    const done=h('button','btn primary','DONE');done.addEventListener('click',closeModal);box.appendChild(done);
+  });
+}
+function confirmRunOnDevice(){
+  openModal(box=>{
+    box.append(h('h3',null,'Run matches on your device?'),
+      h('p',null,'Matches you host will be run by this device instead of the online server: it works out the ball, the bot and the score for everyone who joins. Players still connect through the game server.'),
+      h('p','muted','Keep this tab open and in front while you play. If it goes to the background, your browser pauses it and the match stops for everyone.'));
+    const r=h('div','btnrow');const yes=h('button','btn primary','YES, RUN IT HERE'),no=h('button','btn ghost','NO');
+    yes.addEventListener('click',()=>{NET.localHost=true;try{localStorage.setItem('rs-localhost','1');}catch(e){}openCustoms();});
+    no.addEventListener('click',openSettings);r.append(yes,no);box.appendChild(r);
+  });
+}
+function openCustoms(){
+  openModal(box=>{
+    box.append(h('h3',null,'Customs'),h('p','muted','For matches you host on this device.'));
+    box.appendChild(row('Match length',seg([[120,'2 MIN'],[180,'3 MIN'],[300,'5 MIN']],CUSTOMS.len,v=>{CUSTOMS.len=v;saveCustoms();})));
+    box.appendChild(row('Players',seg([[2,'2'],[4,'4'],[6,'6']],CUSTOMS.max,v=>{CUSTOMS.max=v;saveCustoms();})));
+    box.appendChild(row('Bot fills a gap',seg([[1,'ON'],[0,'OFF']],CUSTOMS.bot,v=>{CUSTOMS.bot=v;saveCustoms();})));
+    box.appendChild(row('Boost',seg([[0,'NORMAL'],[1,'UNLIMITED']],CUSTOMS.ub,v=>{CUSTOMS.ub=v;saveCustoms();})));
+    box.appendChild(h('p','muted','Host a server from MULTIPLAYER and these customs apply. The server list shows that your match runs on your device.'));
+    const r=h('div','btnrow');const ok=h('button','btn primary','DONE'),back=h('button','btn ghost','SETTINGS');
+    ok.addEventListener('click',closeModal);back.addEventListener('click',openSettings);r.append(ok,back);box.appendChild(r);
+  });
+}
+document.getElementById('setBtn').addEventListener('click',openSettings);
 function vote(c){if(!M||M.ph!=='vote')return;LOCAL.vote={r:M.vr,c};NET.lastPeerSig='';}
 UI.vS.addEventListener('click',()=>vote('s'));UI.vW.addEventListener('click',()=>vote('w'));
 document.getElementById('specPrev').addEventListener('click',()=>cycleSpec(-1));
@@ -2754,7 +2873,7 @@ function scheduleFireworks(team){const P=TEAMFX[TN[team]].pal;
   for(let i=0;i<12;i++)FIREWORKS.push({t:GAME.realT+0.35+i*0.22+Math.random()*0.3,pos:V(rr(-AX,AX),rr(48,68),(Math.random()<0.5?-1:1)*rr(AZ+10,AZ+40)),pal:P});}
 function fireworksTick(){
   for(let i=FIREWORKS.length-1;i>=0;i--){const f=FIREWORKS[i];if(GAME.realT<f.t)continue;FIREWORKS.splice(i,1);const c=f.pal[(Math.random()*f.pal.length)|0];
-    for(let k=0;k<(IS_TOUCH?70:120);k++){tv2.set(rr(-1,1),rr(-1,1),rr(-1,1)).normalize();const sp=rr(11,17);
+    for(let k=0,nk=Math.round((IS_TOUCH?70:120)*gfxFx());k<nk;k++){tv2.set(rr(-1,1),rr(-1,1),rr(-1,1)).normalize();const sp=rr(11,17);
       fx.emit(f.pos.x,f.pos.y,f.pos.z,tv2.x*sp,tv2.y*sp,tv2.z*sp,rr(1.2,2.1),rr(1.2,2.0),0.2,[c[0]*4,c[1]*4,c[2]*4],[c[0]*.3,c[1]*.2,c[2]*.3],1.2,-6);}}
 }
 
@@ -2844,6 +2963,7 @@ function tick(dt){
       if(M.ph==='play')botThink(botCar,GAME.realT);
       else{const bi=botCar.inp;bi.throttle=M.ph==='goal'?0.5:0;bi.steer=bi.pitch=bi.roll=0;bi.boost=false;bi.jumpPressed=false;}
     }
+    if(M.cfg&&M.cfg.ub){if(me.active)me.boost=100;if(isAuth()&&botCar.active)botCar.boost=100;}
     syncRemotes(dt);clientBall();
     if(live){
       const n=Math.max(1,Math.ceil(sdt/(1/120)));const h=sdt/n;const auth=isAuth();
@@ -2912,10 +3032,11 @@ if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>drawJumbo(
 toMenu();
 updatePtScale();
 initNet();
-let last=performance.now(),frameErrs=0,lastErrToast=-1e9;
+let last=performance.now(),frameErrs=0,lastErrToast=-1e9,fpsN=0,fpsAt=performance.now();
 function frame(now){
   requestAnimationFrame(frame);
   const dt=Math.min(0.05,Math.max(0,(now-last)/1000));last=now;GAME.realT+=dt;
+  if(GFX.fps){fpsN++;if(now-fpsAt>500){const el=document.getElementById('fpsMeter');el.textContent=Math.round(fpsN*1000/(now-fpsAt))+' FPS';fpsN=0;fpsAt=now;}}
   try{readInput();tick(dt);composer.render();window.__rlStarted=true;frameErrs=0;}
   catch(e){frameErrs++;const where=String(e.stack||'').split('\n').slice(1,2).join('').trim();
     window.__rlLog('error','Frame: '+e.message+(where?' '+where:''));console.error(e);

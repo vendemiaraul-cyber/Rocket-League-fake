@@ -28,6 +28,7 @@ Built with three.js; multiplayer runs on Cloudflare Workers with Durable Objects
 - With an older Worker that doesn't run matches (`/api/health` without `"match": "server"`), the host's browser runs the match as before.
 - **Invite links:** in the lobby, COPY INVITE LINK gives `play.html?join=<code>` (plus `&server=` when the server isn't the site itself). Opening it joins that match as soon as the server list loads.
 - In the lobby everyone's car is parked next to yours with their name, and the host is marked HOST (also on their name tag during the match).
+- **Settings** (menu → SETTINGS): Join our Discord server; graphics (quality, resolution, glow, FPS counter, saved in the browser); Custom server (paste a server link, or run the matches you host on your own device, `rd-…` rooms, with customs: match length, players, bot, unlimited boost); Proof (what the game does and every link it uses).
 - No accounts: anyone who opens the link can host or join. Names, strikes and suspensions are stored in each player's browser.
 
 ## Deploy on Cloudflare
