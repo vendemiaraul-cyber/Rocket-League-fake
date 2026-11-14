@@ -316,6 +316,21 @@ body.driving #orb:not(.open){opacity:.55;transform:scale(.82)}
 @keyframes keyHit{0%{background:#323a66}20%{background:#8fd3ff}40%{background:#323a66}}
 .mini .cap{font:700 11px/1.25 'Rajdhani',sans-serif;color:#cfdcf6;text-align:center;max-width:100%}
 .mini .cap small{display:block;font-weight:600;color:#9fb6e0;letter-spacing:.04em}
+.aimsg.think{align-self:stretch;max-width:none;background:rgba(255,255,255,.035);border:1px dashed rgba(167,180,230,.32);padding:6px 9px;font-size:12px;color:#b8c6e8;border-radius:10px}
+.think .th-head{display:flex;align-items:center;gap:6px;width:100%;background:none;border:0;padding:0;color:#cfdcf6;font:700 11.5px 'Rajdhani',sans-serif;letter-spacing:.05em;cursor:pointer;text-align:left}
+.think .th-head span:nth-child(2){flex:1}
+.think .th-head .sp{width:10px;height:10px;flex:none;border:2px solid rgba(255,255,255,.22);border-top-color:#a9dcff;border-radius:50%;animation:spin .8s linear infinite}
+.think.done .th-head .sp{display:none}
+.think .car{color:#8fa2cc;font-size:11px}
+.think .th-body{display:flex;flex-direction:column;gap:3px;margin-top:5px;padding-left:2px}
+.think:not(.open) .th-body{display:none}
+.th-line{display:flex;gap:6px;line-height:1.35}
+.th-line i{font-style:normal;width:12px;flex:none;text-align:center}
+.th-line.run i::before{content:'…';color:#a9dcff}.th-line.ok i::before{content:'✓';color:#59e09a}.th-line.bad i::before{content:'–';color:#9aa6c8}
+.th-sug{display:flex;flex-wrap:wrap;gap:5px}
+.th-sug:not(:empty){margin-top:7px}
+.th-sug b{width:100%;font:700 10px 'Rajdhani',sans-serif;letter-spacing:.1em;color:#9fb6e0}
+.th-sug button{background:rgba(124,198,255,.1);border:1px solid rgba(124,198,255,.35);color:#cfe6ff;border-radius:999px;padding:4px 9px;font:700 11.5px 'Rajdhani',sans-serif;cursor:pointer;text-align:left}
 .aimsg.crewdone{align-self:flex-start;background:none;border:0;padding:0 2px;font:700 11px 'Rajdhani',sans-serif;color:#9fb6e0}
 .flyer{position:fixed;z-index:37;width:32px;height:32px;margin:-16px 0 0 -16px;border-radius:50%;pointer-events:none;
   background:conic-gradient(from 30deg,#4f7dff,#a765ff,#ff6fb3,#ffae6b,#4fe0ff,#4f7dff);box-shadow:0 0 14px rgba(150,120,255,.8),inset -3px -4px 7px rgba(14,4,52,.5)}
@@ -2857,17 +2872,53 @@ function rsaiClassify(text){
   const T=I.temperature||1,z=new Float32Array(c);let mx=-Infinity;
   for(let q=0;q<c;q++){let v=W.b2[q];const r=q*h;for(let j=0;j<h;j++)v+=W.w2[r+j]*hv[j];z[q]=v/T;if(z[q]>mx)mx=z[q];}
   let sum=0,best=0;for(let q=0;q<c;q++){z[q]=Math.exp(z[q]-mx);sum+=z[q];if(z[q]>z[best])best=q;}
-  return {label:I.labels[best],p:z[best]/sum};
+  const ranked=[...z].map((v,i)=>({label:I.labels[i],p:v/sum})).sort((a,b)=>b.p-a.p).slice(0,6);
+  return {label:I.labels[best],p:z[best]/sum,ranked};
 }
 // Answers from the brain when the model is sure (any=true: take its best guess, used when there's no cloud helper).
+// -> null (no model here) or {label, p, ranked, text}: text is the brain's answer when the model is sure, otherwise ''
 async function rsaiAnswer(q,any){
   if(RSAI.state==='none')return null;
   await Promise.race([rsaiLoad(),new Promise(r=>setTimeout(r,2500))]);
-  const r=rsaiClassify(q);if(!r||r.label==='other')return null;
-  const th=RSAI.info.threshold||0.6;
-  if(r.p<(any?Math.min(0.35,th):th))return null;
-  const a=RSAI.info.answers[r.label];return a?{text:a,label:r.label,p:r.p}:null;
+  const r=rsaiClassify(q);if(!r)return null;
+  const th=RSAI.info.threshold||0.6,sure=r.label!=='other'&&r.p>=(any?Math.min(0.35,th):th);
+  return {...r,text:sure&&RSAI.info.answers[r.label]||''};
 }
+// Similar questions for the thought box: another way to ask the same thing, then the closest other topics.
+function rsaiSuggest(q,r){
+  if(RSAI.state!=='ready'||!RSAI.info.asks)return [];
+  r=r||rsaiClassify(q);if(!r)return [];
+  const grams=t=>{const s=' '+rsaiNorm(t).replace(/(.)\1+/g,'$1')+' ',g=new Set();for(let i=0;i+3<=s.length;i++)g.add(s.slice(i,i+3));return g;};
+  const qg=grams(q),near=a=>{const g=grams(a);let n=0;for(const x of g)if(qg.has(x))n++;return n/Math.max(1,Math.min(g.size,qg.size))>0.6;};
+  const topics=r.ranked.filter(x=>x.label!=='other'&&x.p>=0.04);
+  if(!topics.length||topics[0].p<0.25)return [];          // nothing in the brain is close enough to this question
+  const out=[],seen=new Set();
+  const take=(label,n)=>{for(const a of RSAI.info.asks[label]||[]){if(out.length>=3||n<=0)break;const k=rsaiNorm(a);if(seen.has(k)||near(a))continue;seen.add(k);out.push(a);n--;}};
+  take(topics[0].label,topics.length>1?1:2);          // the same thing, asked another way
+  for(const t of topics.slice(1))take(t.label,1);      // the closest other topics
+  take(topics[0].label,3);
+  return out.slice(0,3);
+}
+/* ---- the thought box: shows what the helper is doing, step by step, then folds up; it also suggests similar questions ---- */
+function thinkBox(title){
+  const el=h('div','aimsg think open'),head=h('button','th-head'),sp=h('span','sp'),lab=h('span',null,title||'💭 Thinking…'),car=h('span','car','▾');
+  head.type='button';head.append(sp,lab,car);const body=h('div','th-body'),sug=h('div','th-sug');el.append(head,body,sug);
+  head.addEventListener('click',()=>{el.classList.toggle('open');car.textContent=el.classList.contains('open')?'▾':'▸';placeChat();});
+  aiLogEl.appendChild(el);aiLogEl.scrollTop=aiLogEl.scrollHeight;placeChat();
+  const t0=performance.now();let ended=false;
+  const box={el,
+    step(text){const line=h('div','th-line run');line.append(h('i'),h('span',null,text));body.appendChild(line);aiLogEl.scrollTop=aiLogEl.scrollHeight;placeChat();
+      return {done(more,ok){line.className='th-line '+(ok===false?'bad':'ok');if(more)line.lastChild.textContent=text+' → '+more;placeChat();}};},
+    note(text,ok){const l=box.step(text);l.done('',ok);return l;},
+    finish(){if(ended)return;ended=true;for(const l of body.querySelectorAll?body.querySelectorAll('.th-line.run'):[])l.className='th-line ok';
+      el.classList.add('done');lab.textContent=`💭 Thought for ${((performance.now()-t0)/1000).toFixed(1)} s`;el.classList.remove('open');car.textContent='▸';placeChat();},
+    suggest(list){if(!list||!list.length)return;sug.textContent='';sug.appendChild(h('b',null,'YOU COULD ALSO ASK'));
+      for(const a of list){const b=h('button',null,a);b.type='button';b.addEventListener('click',()=>{if(!aiBusy&&!checking)askAI(a);});sug.appendChild(b);}placeChat();},
+  };
+  return box;
+}
+const pct=p=>Math.round(p*100)+'%';
+const topicName=l=>String(l||'').replace(/-/g,' ');
 // Asks the helper. The server first decides whether to send mini helpers to research (the game's code, or
 // Wikipedia) and streams their progress, one JSON object per line; older servers just answer.
 /* ---- mini helpers, on this device: they search the game's own code (this page, and the server's files from the
@@ -2919,7 +2970,7 @@ async function devSearch(q){
   const base=serverBase();if(!base)return [];
   try{const lang=String(navigator.language||'en').slice(0,2).toLowerCase();
     const r=await fetch(`${base}/api/search?q=${encodeURIComponent(q)}&lang=${encodeURIComponent(lang)}`,{signal:AbortSignal.timeout?AbortSignal.timeout(12000):undefined});
-    const j=r.ok?await r.json():null;return j&&j.ok&&Array.isArray(j.results)?j.results.slice(0,5):[];}catch(e){return [];}
+    const j=r.ok?await r.json():null;if(j&&j.ok&&Array.isArray(j.results)){const out=j.results.slice(0,5);out.via=String(j.via||'').replace('.hf.space','');return out;}return [];}catch(e){return [];}
 }
 // one mini helper's job -> a note for the helper ({kind,label,text,sources}) or null
 async function devResearch(t,all){
@@ -2930,12 +2981,13 @@ async function devResearch(t,all){
     if(hits.length)parts.push('Web search results:\n'+hits.map((x,i)=>`${i+1}. ${x.title} (${x.url})${x.content?'\n   '+x.content:''}`).join('\n'));
     if(pages.length)parts.push(pages.map(p=>`Wikipedia: ${p.title}\n${p.extract}`).join('\n\n'));
     const src=[...pages.map(p=>({title:String(p.title).slice(0,80),url:String(p.fullurl||'')})),...hits.slice(0,3).map(x=>({title:String(x.title).slice(0,80),url:String(x.url)}))];
-    return {kind:'web',label:t.label,text:parts.join('\n\n').slice(0,3500),sources:src.slice(0,3)};
+    const info=[hits.length?`${hits.length} web result${hits.length===1?'':'s'}${hits.via?' via '+hits.via:''}`:'web search not answering',pages.length?'Wikipedia: '+pages.map(p=>p.title).join(', '):''].filter(Boolean).join(' + ');
+    return {kind:'web',label:t.label,text:parts.join('\n\n').slice(0,3500),sources:src.slice(0,3),info};
   }
   const chunks=await devLoadCode();
   const sameQ=t.second&&all.some(x=>x!==t&&!x.second&&x.q===t.q);
   const ex=devPick(chunks,t.q,sameQ?4:0);if(!ex.length)return null;
-  return {kind:'code',label:t.label,text:ex.map((c,i)=>`--- excerpt ${i+1} ---\n${c}`).join('\n').slice(0,3500)};
+  return {kind:'code',label:t.label,text:ex.map((c,i)=>`--- excerpt ${i+1} ---\n${c}`).join('\n').slice(0,3500),info:`found ${ex.length} matching part${ex.length===1?'':'s'} of the code`};
 }
 // Decides on this device whether a question needs research: how the game works -> the code; a general topic -> Wikipedia.
 const GAME_WORDS=/\b(ball|car|cars|boost|flip|goal|bot|match|server|lobby|helper|orb|rocket strike|game|kickoff|jump|arena|multiplayer|chat|host)\b/i;
@@ -2980,6 +3032,7 @@ function setAiMode(m){AIMODE=m;try{localStorage.setItem('rs-aimode',m);}catch(e)
   const ck=document.getElementById('aiCheck');if(ck)ck.title=m==='ultra'?'Ultra check: test, diagnose and fix one thing':m==='stabilized'?'Run a check (double-checked in the code)':'Run a check';
   aiSay('a mode',AIMODE_NOTE[m]);}
 // Asks the helper. Our own AI answers first when it's sure; the cloud helper gets the rest (how depends on the mode).
+// Every question gets a thought box showing the steps, and similar questions to try.
 async function askAI(question,opt){
   opt=opt||{};const q=String(question||'').replace(/[\u0000-\u0008\u000b-\u001f]/g,' ').trim().slice(0,opt.hideQuestion?1400:600);if(q.length<2||aiBusy||checking)return false;
   if(!orbOpen)toggleOrbChat(true);
@@ -2987,33 +3040,43 @@ async function askAI(question,opt){
   chipsEl.hidden=true;   // the quick questions only show until the first question
   const base=serverBase();
   if(AIMODE==='ultra'&&!opt.hideQuestion&&!opt.cloud)return runUltra(q);
-  let label='';
+  const tb=thinkBox();let label='',guess=null;
   // our own AI first: instant, on this device, no limits
   if(!opt.hideQuestion&&!opt.cloud){
     aiBusy=true;aiSendEl.disabled=true;orbMood('think');const dots=aiDots();
-    const t0=performance.now(),loc=await rsaiAnswer(q,!base);
-    label=loc?loc.label:((rsaiClassify(q)||{}).label||'');
-    if(loc){
+    const t0=performance.now(),st=tb.step('Reading your question with Rocket Strike AI (on this device)');
+    const loc=await rsaiAnswer(q,!base);guess=loc;
+    if(!loc)st.done('not available here',false);
+    else{label=loc.label!=='other'&&loc.p>=0.35?loc.label:'';   // only trust its topic when it's fairly sure
+      st.done(loc.text?`it's about “${topicName(loc.label)}” (${pct(loc.p)} sure)`:loc.label==='other'?`not a game topic I know (${pct(loc.p)})`:`not sure enough (best guess “${topicName(loc.label)}”, ${pct(loc.p)})`,!!loc.text);}
+    if(loc&&loc.text){
       await new Promise(r=>setTimeout(r,Math.max(0,420-(performance.now()-t0))));   // a moment to show him thinking
+      tb.note('Answering from my brain ⚡ (no cloud call)');
       dots.remove();AI_CHAT.push({role:'user',content:q},{role:'assistant',content:loc.text});
+      tb.finish();tb.suggest(rsaiSuggest(q,loc));
       const m=aiSay('a',loc.text);rsaiTag(m,q);
       aiBusy=false;aiSendEl.disabled=false;
       if(AIMODE==='stabilized'&&base&&isTrouble(q,loc.label)){   // problems get a second opinion, checked in the code
-        orbMood('');return aiCloud('Please double-check that answer for my problem: '+q,{local:loc.text,tasks:troubleFocus(q,loc.label),label:'Double-check:'});
+        orbMood('');const tb2=thinkBox();tb2.note('Stabilized mode: this is a problem, so the cloud helper double-checks my answer');
+        return aiCloud('Please double-check that answer for my problem: '+q,{local:loc.text,tasks:troubleFocus(q,loc.label),label:'Double-check:',tb:tb2});
       }
       orbMood('happy');return true;
     }
     dots.remove();aiBusy=false;aiSendEl.disabled=false;
   }
-  if(!base){orbMood('');if(!opt.hideQuestion)aiSay('a','I\'m not sure about that one, and there\'s no game server here for harder questions. Try asking another way, or open the game from one of the Rocket Strike sites.');return false;}
-  const o={...opt};
-  if(AIMODE==='stabilized'&&!opt.hideQuestion)o.tasks=isTrouble(q,label)?troubleFocus(q,label):devPlan(q,label);   // light: no research
+  if(!base){orbMood('');tb.note('No game server here for harder questions',false);tb.finish();tb.suggest(rsaiSuggest(q,guess));
+    if(!opt.hideQuestion)aiSay('a','I\'m not sure about that one, and there\'s no game server here for harder questions. Try asking another way, or open the game from one of the Rocket Strike sites.');return false;}
+  const o={...opt,tb,guess};
+  if(AIMODE==='stabilized'&&!opt.hideQuestion){
+    const trouble=isTrouble(q,label);o.tasks=trouble?troubleFocus(q,label):devPlan(q,label);
+    tb.note(trouble?'Stabilized mode: looks like a problem, so 2 mini helpers check the game\'s code':o.tasks.length?'Stabilized mode: sending mini helpers to research first':'Stabilized mode: no research needed');
+  }else if(AIMODE==='light'&&!opt.hideQuestion)tb.note('Light mode: asking the cloud helper directly, no research');
   return aiCloud(q,o);
 }
 // The cloud helper (gpt-oss on the game server). It streams its progress: the mini helpers' jobs, each one finishing,
 // then the reply (and in Ultra mode the one fix it picked). Resolves to {ok, fix}.
 async function aiCloud(q,opt){
-  const base=serverBase();opt=opt||{};
+  const base=serverBase();opt=opt||{};const tb=opt.tb||thinkBox();
   AI_CHAT.push({role:'user',content:q});
   aiBusy=true;aiSendEl.disabled=true;orbMood('think');
   let wait=aiDots(),crew=null,ok=false,j=null,status=0;
@@ -3021,16 +3084,18 @@ async function aiCloud(q,opt){
   let notes=[];
   const tasks=Array.isArray(opt.tasks)?opt.tasks.filter(t=>t&&t.q).slice(0,2):[];
   if(tasks.length){
-    wait.remove();crew=await crewStart(tasks);const t0=performance.now();
+    wait.remove();const lines=tasks.map((t,i)=>tb.step(`Mini helper ${i+1}: ${t.kind==='web'?'searching the web for':t.second?'checking other parts of the code for':'searching the game\'s code for'} “${String(t.q).slice(0,48)}”`));
+    crew=await crewStart(tasks);const t0=performance.now();
     notes=await Promise.all(tasks.map(async(t,i)=>{let n=null;try{n=await devResearch(t,tasks);}catch(e){}
-      await new Promise(r=>setTimeout(r,Math.max(0,1100+i*350-(performance.now()-t0))));crewTask(crew,i,!!n);return n;}));
-    notes=notes.filter(Boolean);
+      await new Promise(r=>setTimeout(r,Math.max(0,1100+i*350-(performance.now()-t0))));crewTask(crew,i,!!n);lines[i].done(n?n.info:'nothing useful found',!!n);return n;}));
+    notes=notes.filter(Boolean).map(({info,...n})=>n);
   }
   try{
     const ctl=new AbortController();const to=setTimeout(()=>ctl.abort(),75000);
     const body={messages:AI_CHAT.slice(-8),status:aiShareLog?aiStatus():'',log:aiShareLog?logText(80):'',stream:1,research:0,
       lang:String(navigator.language||'en').slice(0,2).toLowerCase(),mode:opt.mode||AIMODE};
     if(notes.length)body.notes=notes;if(opt.local)body.local=opt.local;if(opt.fixes)body.fixes=opt.fixes;
+    var cl=tb.step(`Asking the cloud helper (1 call${notes.length?`, with what ${notes.length===1?'the mini helper':'the mini helpers'} found`:''})`),ct0=performance.now();
     const r=await fetch(base+'/api/assistant',{method:'POST',headers:{'content-type':'application/json'},signal:ctl.signal,body:JSON.stringify(body)});
     status=r.status;
     if(/ndjson/.test(r.headers.get('content-type')||'')&&r.body&&r.body.getReader){
@@ -3048,6 +3113,10 @@ async function aiCloud(q,opt){
   }catch(e){j=j||{ok:false,reason:'net'};}
   if(crew)await crewEnd(crew);
   wait.remove();
+  if(typeof cl!=='undefined'&&cl)cl.done(j&&j.ok?`answered in ${((performance.now()-ct0)/1000).toFixed(1)} s`:'no answer',!!(j&&j.ok));
+  else tb.note('Could not reach the cloud helper',false);
+  if(j&&j.ok&&j.fix)tb.note('Picked one setting to change');
+  tb.finish();if(!opt.hideQuestion)tb.suggest(rsaiSuggest(q,opt.guess));
   if(j&&j.ok&&j.reply){AI_CHAT.push({role:'assistant',content:j.reply});const m=aiSay('a',(opt.label?'**'+opt.label+'**\n':'')+j.reply);aiSources(m,j.sources);ok=true;}
   else{const why=j&&j.reason;AI_CHAT.pop();
     if(!opt.hideQuestion)aiSay('a',why==='net'?'I couldn\'t reach the helper. Check your connection and try again.':why==='not_set_up'||status===404?'The AI helper isn\'t set up on this game server yet.':why==='slow_down'?`One moment: you can ask again in ${j.wait||5} s.`:
@@ -3304,11 +3373,14 @@ function checkFocus(items,q){
 async function runCheck(){
   if(AIMODE==='ultra')return runUltra('');
   if(checking||aiBusy)return;checking=true;orbMood('think');
+  if(!orbOpen)toggleOrbChat(true);
+  const tb=thinkBox();const s1=tb.step('Testing device, graphics, frame rate, connection and server');
   const res=await collectChecks(false);checking=false;
-  if(AIMODE==='light'||!serverBase()){aiSay('a',localDiagnosis(res.lines));orbMood('happy');return;}   // light: diagnosed on this device
+  const bad=res.items.filter(x=>!x.ok);s1.done(bad.length?`${bad.length} problem${bad.length===1?'':'s'}: ${bad.map(x=>x.k).join(', ')}`:'all passed',!bad.length);
+  if(AIMODE==='light'||!serverBase()){tb.note('Light mode: diagnosing on this device (no cloud call)');tb.finish();aiSay('a',localDiagnosis(res.lines));orbMood('happy');return;}   // light: diagnosed on this device
   const q='I ran the Rocket Strike check. Results:\n'+res.lines.join('\n')+'\nWhat is the diagnosis, and what should I do?';
   const f=checkFocus(res.items,'');
-  const r=await aiCloud(q,{hideQuestion:true,tasks:f,label:'Here\'s what I found:'});
+  const r=await aiCloud(q,{hideQuestion:true,tasks:f,label:'Here\'s what I found:',tb});
   if(!r.ok)aiSay('a',localDiagnosis(res.lines));
   orbMood(r.ok?'happy':'');
 }
@@ -3316,15 +3388,19 @@ async function runCheck(){
 // change exactly one setting (with an Undo button).
 async function runUltra(q){
   if(checking||aiBusy)return false;checking=true;orbMood('think');
+  if(!orbOpen)toggleOrbChat(true);
+  const tb=thinkBox();const s1=tb.step('Ultra: testing everything, including the game\'s assets');
   const res=await collectChecks(true);checking=false;
   const fails=res.items.filter(x=>!x.ok),fixes=fixCatalog(res);
-  if(!fails.length&&!q){aiSay('a','**Ultra check:** everything passed ✅, so I didn\'t change anything.');orbMood('happy');return true;}
+  s1.done(fails.length?`${fails.length} problem${fails.length===1?'':'s'}: ${fails.map(x=>x.k).join(', ')}`:'all passed',!fails.length);
+  if(!fails.length&&!q){tb.note('Nothing to fix, so no cloud call');tb.finish();aiSay('a','**Ultra check:** everything passed ✅, so I didn\'t change anything.');orbMood('happy');return true;}
+  tb.note(`Settings I'm allowed to change: ${fixes.map(f=>f.label.split(' →')[0]).join(', ')||'none'}`);
   let fix='',ok=false;
   if(serverBase()){
     const text='ULTRA check.'+(q?' My problem: '+q:'')+'\nResults:\n'+res.lines.join('\n');
-    const r=await aiCloud(text,{hideQuestion:true,mode:'ultra',tasks:checkFocus(res.items,q),fixes:fixes.map(f=>({id:f.id,what:f.what})),label:'Ultra diagnosis:'});
+    const r=await aiCloud(text,{hideQuestion:true,mode:'ultra',tasks:checkFocus(res.items,q),fixes:fixes.map(f=>({id:f.id,what:f.what})),label:'Ultra diagnosis:',tb});
     ok=r.ok;fix=r.fix;
-  }
+  }else tb.finish();
   if(!ok){aiSay('a',localDiagnosis(res.lines));fix=localFix(res,fixes);}
   applyOneFix(fix,fixes);
   orbMood('happy');return ok;
