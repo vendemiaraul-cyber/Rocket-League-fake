@@ -3007,7 +3007,7 @@ function devPlan(q,label){
 /* ---- helper modes: LIGHT (the default, cheapest), STABILIZED (double-checks problems with two code checkers),
    ULTRA (full check + asset check, two code checkers, then the game changes exactly one setting) ---- */
 let AIMODE=(()=>{try{const m=localStorage.getItem('rs-aimode');return ['light','stabilized','ultra'].includes(m)?m:'light';}catch(e){return 'light';}})();
-const AIMODE_NOTE={light:'⚡ **Light**: I answer on your device. Anything I\'m unsure of goes to the cloud helper without research. Uses the least.',
+const AIMODE_NOTE={light:'⚡ **Light**: I answer on your device only: no cloud calls unless you tap **☁ Ask the cloud helper**. If I\'m not sure I give my best guess or tell you.',
   stabilized:'🛡 **Stabilized**: for problems and errors I answer first, then the cloud helper double-checks it with what **2 mini helpers** find in different parts of the game\'s code (they search on your device, so it\'s one cloud call).',
   ultra:'🚀 **Ultra**: every message runs a full check and asset check, **2 mini helpers** look into the code behind anything that fails, and then I change **exactly one setting** to fix it (you can undo it).'};
 const TROUBLE=new Set(['lag','jitter','white-screen','webgl','cant-host','create-failed','match-closed','lost-connection','host-left','stuck-goal','status-line','log','check','chat-restricted','saved-data']);
@@ -3018,7 +3018,7 @@ const TOPIC_CODE={lag:'applyGfx quality bloom setPixelRatio fps GFX',jitter:'sna
   'host-left':'host left server closed localHost','stuck-goal':'goal kickoff syncFromM followHost phase','status-line':'renderHosting notLinked detectServer health',
   'chat-restricted':'chatRestricted captcha suspended strikes','log':'logEv error Frame window.onerror','check':'runCheck testSocket health','saved-data':'localStorage setItem getItem'};
 const CODE_STOP=new Set('the and for with that this how does what why when where are was you your from into game rocket strike it its can not dont doesnt my i a to is of in on me'.split(' '));
-const isTrouble=(q,label)=>TROUBLE.has(label)||TROUBLE_RE.test(q)||(logCounts().e>0&&/why|what|happen|help/i.test(q));
+const isTrouble=(q,label)=>TROUBLE.has(label)||TROUBLE_RE.test(q);   // a real problem question, not just any question
 function qWords(q){return rsaiNorm(q).split(' ').filter(w=>w.length>2&&!CODE_STOP.has(w)).slice(0,6).join(' ');}
 function logProblems(){return (window.__rlLogBuf||[]).filter(x=>x.level==='error'||x.level==='fatal'||x.level==='warn').slice(-3).map(x=>String(x.msg||x.text||'')).join(' ').slice(0,90);}
 // two code-checking jobs: the first follows the question, the second the errors in the log (or the same topic, deeper)
@@ -3063,6 +3063,16 @@ async function askAI(question,opt){
       orbMood('happy');return true;
     }
     dots.remove();aiBusy=false;aiSendEl.disabled=false;
+  }
+  // Light: stay on this device. Its best guess (or an honest "I don't know"), and the cloud only when you tap ☁.
+  if(AIMODE==='light'&&!opt.hideQuestion&&!opt.cloud){
+    const g=guess&&guess.label!=='other'&&guess.p>=0.3&&RSAI.info&&RSAI.info.answers[guess.label]?guess:null;
+    tb.note(g?`Light mode: answering with my best guess, “${topicName(g.label)}” (no cloud call)`:'Light mode: I don\'t know this one, so I didn\'t call the cloud');
+    tb.finish();tb.suggest(rsaiSuggest(q,guess));
+    let m;
+    if(g){const a=RSAI.info.answers[g.label];AI_CHAT.push({role:'user',content:q},{role:'assistant',content:a});m=aiSay('a',`I think you're asking about **${topicName(g.label)}**:\n${a}`);}
+    else m=aiSay('a',base?'I don\'t know that one yet. Tap **☁ Ask the cloud helper** below to ask the bigger AI (that uses a little of the daily allowance), or try one of the questions above.':'I don\'t know that one yet. Try asking another way, or one of the questions above.');
+    rsaiTag(m,q);orbMood(g?'happy':'');return !!g;
   }
   if(!base){orbMood('');tb.note('No game server here for harder questions',false);tb.finish();tb.suggest(rsaiSuggest(q,guess));
     if(!opt.hideQuestion)aiSay('a','I\'m not sure about that one, and there\'s no game server here for harder questions. Try asking another way, or open the game from one of the Rocket Strike sites.');return false;}

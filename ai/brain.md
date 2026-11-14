@@ -555,6 +555,10 @@ Ask like:
 - performance problems
 - frame rate is bad
 - my ipad is slow with this
+- my game keeps freezing
+- it freezes all the time
+- the game freezes for a second
+- il gioco si blocca
 
 ## jitter
 Answer:
@@ -935,7 +939,7 @@ Ask like:
 ## helper-modes
 Answer:
 The helper has three modes (top of my chat bubble):
-- **LIGHT** (normal): I answer on your device; anything I'm unsure of goes to the cloud helper without research. Uses the least.
+- **LIGHT** (normal): I answer on your device only, with **no cloud calls** unless you tap **☁ Ask the cloud helper**. If I'm not sure I give my best guess or tell you.
 - **STABILIZED**: for problems and errors I answer first, then the cloud helper double-checks it with what **2 mini helpers** find in the game's code (they search on your device, so it's one cloud call).
 - **ULTRA**: runs a full check plus an asset check (3D engine, fonts, my AI, game files), 2 mini helpers search the code behind anything that fails (on your device), and I change **exactly one setting** to fix it. There's an **Undo** button.
 Keywords: modes, helper modes, light mode, stabilized, stabilized mode, ultra, ultra mode, efficiency, modalità, which mode
@@ -957,6 +961,8 @@ Ask like:
 - can you search the web
 - what is searxng
 - how many cloud calls does it use
+- why does it call the cloud
+- stop calling the cloud
 - efficiency modes
 - what is the difference between light and stabilized
 
