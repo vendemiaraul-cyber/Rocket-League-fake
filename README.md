@@ -10,6 +10,7 @@ Built with three.js; multiplayer runs on Cloudflare Workers with Durable Objects
 | `public/index.html` | The whole game (one file). Plays against the bot anywhere; online play turns on when it finds the server. |
 | `src/worker.js` | The multiplayer server: serves the game, answers `/api/health`, and relays players through rooms at `/ws`. |
 | `wrangler.jsonc` | Cloudflare config: static assets, the `GameRoom` Durable Object and its migration. |
+| `functions/` | Pages Functions: on a Cloudflare Pages site, forward `/api/health` and `/ws` to a linked Worker. |
 | `netlify.toml`, `index.html` | Let Netlify, Cloudflare Pages and GitHub Pages serve the game page. |
 
 ## How multiplayer works
@@ -38,13 +39,24 @@ npx wrangler deploy
 
 Run it locally with `npx wrangler dev` and open http://localhost:8787 in two tabs to test multiplayer.
 
-### Cloudflare Pages, Netlify, GitHub Pages
+### Multiplayer on a Cloudflare Pages site
 
-These serve the game page (the root `index.html` forwards to `public/`, and `netlify.toml` points Netlify at `public/`), but they can't run the multiplayer server. The game shows where it's running ("Running on Cloudflare Pages", "Running on Netlify"…) and stays bot-only there until it's pointed at a Worker (see below). For online play, deploy the repo as a **Worker** as described above.
+Pages serves the game, and the `functions/` folder forwards multiplayer to a Worker deployed from this same repo. Nothing in the code points at a specific server: each site owner links their own.
+
+1. Deploy the Worker (steps above). Note its name, for example `rocket-strike`.
+2. Open your **Pages** project → **Settings** → **Bindings** → **Add** → **Service binding**.
+3. Variable name `GAME`, service: your Worker. Save.
+4. Redeploy the Pages project (Deployments → latest → Retry deployment).
+
+The game then shows "Running on Cloudflare Pages · linked to a Worker · game server online". Without the link it shows "game server not linked yet" and plays against the bot.
+
+### Netlify, GitHub Pages
+
+These serve the game page (`netlify.toml` points Netlify at `public/`; the root `index.html` forwards to `public/`) but can't run or link the server. Players can still join a server through **MULTIPLAYER → Game server → CHANGE** by pasting a server's address.
 
 ## Using the server from another site
 
-If the game page is hosted somewhere else, point it at your Worker by setting `GAME_SERVER` near the networking section of `public/index.html`, or open the page with `?server=https://rocket-strike.<your-subdomain>.workers.dev`.
+Players can pick a server in **MULTIPLAYER → Game server → CHANGE** (saved only on their device). You can also open the page with `?server=https://<your-worker-address>`, or set `GAME_SERVER` in `public/index.html` for your own copy.
 
 ## Notes
 
