@@ -92,6 +92,18 @@ h2{font-size:clamp(30px,4.2vw,46px);margin:10px 0 14px;transform:skewX(-5deg);tr
 .feat h3{font-family:'Russo One',Impact,sans-serif;font-weight:400;font-size:19px;margin:0 0 6px;letter-spacing:.03em}
 .feat p{margin:0;color:var(--muted);font-size:17px}
 
+.sites{display:grid;grid-template-columns:repeat(2,1fr);gap:18px;margin-top:30px}
+.site{display:flex;align-items:center;gap:16px;text-decoration:none;padding:20px 22px;border-radius:18px;border:1px solid var(--line);background:linear-gradient(180deg,rgba(20,27,62,.9),rgba(12,16,38,.9));transition:transform .15s,border-color .15s}
+.site:hover{transform:translateY(-2px);border-color:rgba(124,198,255,.5)}
+.site:focus-visible{outline:3px solid var(--blue2);outline-offset:3px}
+.site .badge{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;flex:none;font-family:'Russo One',Impact,sans-serif;font-size:18px}
+.site .badge.cf{background:rgba(255,122,26,.16);color:var(--orange2);border:1px solid rgba(255,176,102,.35)}
+.site .badge.nf{background:rgba(18,181,165,.16);color:#5fe3d3;border:1px solid rgba(95,227,211,.35)}
+.site .meta{min-width:0;flex:1}
+.site .name{font-family:'Russo One',Impact,sans-serif;font-size:19px;letter-spacing:.03em}
+.site .url{color:var(--muted);font-size:15px;word-break:break-all}
+.site .here{margin-left:auto;font-weight:700;font-size:12px;letter-spacing:.16em;color:var(--ok);border:1px solid rgba(89,224,154,.4);border-radius:999px;padding:3px 10px;white-space:nowrap}
+.site .go{margin-left:auto;font-family:'Russo One',Impact,sans-serif;color:var(--blue2);font-size:20px}
 /* controls */
 .controls{display:grid;grid-template-columns:1fr 1fr;gap:18px}
 .keys{display:grid;grid-template-columns:auto 1fr;gap:10px 16px;align-items:center;color:var(--muted)}
@@ -105,7 +117,7 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:15px}
 footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
 
 @media (max-width:880px){
-  .hero .wrap,.split,.controls{grid-template-columns:1fr}
+  .hero .wrap,.split,.controls,.sites{grid-template-columns:1fr}
   .hero .wrap{padding-top:40px;padding-bottom:56px}
   .steps,.feats{grid-template-columns:1fr}
   section{padding:64px 0}
@@ -121,6 +133,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
     <div class="navlinks">
       <a class="txt" href="#online">PLAY ONLINE</a>
       <a class="txt" href="#links">INVITE LINKS</a>
+      <a class="txt" href="#where">WHERE TO PLAY</a>
       <a class="btn primary sm play" href="play.html">PLAY</a>
     </div>
   </div>
@@ -177,6 +190,21 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
     </svg>
   </div>
 </header>
+
+<!-- Links to the live Rocket Strike sites. Running your own copy? Change these two links to your sites. -->
+<section id="where">
+  <div class="wrap">
+    <div class="eyebrow">WHERE TO PLAY</div>
+    <h2 class="display">Two links, one game</h2>
+    <p class="sub" style="margin-bottom:0">Rocket Strike runs on Cloudflare and on Netlify. Both connect to the same game server, so friends on either link see the same matches and can play together.</p>
+    <div class="sites">
+      <a class="site" data-host="rocket-league-fake.vendemiaraul.workers.dev" href="https://rocket-league-fake.vendemiaraul.workers.dev/play.html">
+        <span class="badge cf">CF</span><span class="meta"><span class="name">Cloudflare</span><br><span class="url">rocket-league-fake.vendemiaraul.workers.dev</span></span><span class="go">&rarr;</span></a>
+      <a class="site" data-host="rocketstrikefornetlify.netlify.app" href="https://rocketstrikefornetlify.netlify.app/play.html">
+        <span class="badge nf">N</span><span class="meta"><span class="name">Netlify</span><br><span class="url">rocketstrikefornetlify.netlify.app</span></span><span class="go">&rarr;</span></a>
+    </div>
+  </div>
+</section>
 
 <section id="online">
   <div class="wrap">
@@ -268,6 +296,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
     [/(^|\.)vercel\.app$/,'Vercel'],[/(^|\.)github\.io$/,'GitHub Pages'],[/^(localhost|127\.0\.0\.1)$/,'your computer']];
   var host='';for(var i=0;i<HOSTS.length;i++)if(HOSTS[i][0].test(location.hostname)){host=HOSTS[i][1];break;}
   if(host)document.getElementById('hostedOn').textContent='Running on '+host;
+  document.querySelectorAll('a.site').forEach(function(a){if(a.getAttribute('data-host')===location.hostname){var g=a.querySelector('.go');if(g){g.className='here';g.textContent='YOU\'RE HERE';}a.href='play.html'+q;}});
 
   // Which game server the game would use: same order as the game itself
   var RE=/^https?:\/\/[a-z0-9.-]+(:\d+)?\/?$/i;
