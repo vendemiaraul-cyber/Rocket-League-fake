@@ -2762,7 +2762,7 @@ function openSettings(){
     pr.appendChild(h('p','muted','Your name, paint, settings and chat strikes are saved only in this browser. Want a second opinion? Scan any of the links below on VirusTotal.'));
     const ul=h('ul','linklist');
     const links=[['This site',location.origin],['Game server',serverBase()||'none (playing offline against the bot)'],['3D engine (three.js)','https://cdn.jsdelivr.net/npm/three@0.165.0/'],
-      ['Fonts (Google Fonts)','https://fonts.googleapis.com'],['Source code (anyone can read it)',SOURCE_URL],['Discord server',DISCORD_URL],['Rocket Strike AI (our own model, trained with PyTorch, runs on your device)',new URL('ai/rs-ai.json',location.href).href],['Cloud helper for harder questions (gpt-oss-120b via Workers AI)',(serverBase()||'none')+'/api/assistant'],['Mini helpers: game code they read (on your device)',SOURCE_RAW],['Mini helpers: Wikipedia lookups (on your device)','https://www.wikipedia.org'],['Virus check (VirusTotal)','https://www.virustotal.com/gui/home/url']];
+      ['Fonts (Google Fonts)','https://fonts.googleapis.com'],['Source code (anyone can read it)',SOURCE_URL],['Discord server',DISCORD_URL],['Rocket Strike AI (our own model, trained with PyTorch, runs on your device)',new URL('ai/rs-ai.json',location.href).href],['Cloud helper for harder questions (gpt-oss-120b via Workers AI)',(serverBase()||'none')+'/api/assistant'],['Mini helpers: game code they read (on your device)',SOURCE_RAW],['Mini helpers: Wikipedia lookups (on your device)','https://www.wikipedia.org'],['Mini helpers: web search (SearXNG on Hugging Face, through the game server)',(serverBase()||'none')+'/api/search?test=1'],['Virus check (VirusTotal)','https://www.virustotal.com/gui/home/url']];
     for(const [label,url] of links){const li=h('li');li.appendChild(h('b',null,label));
       if(/^https?:\/\//.test(url)){const l=h('a',null,url);l.href=url;l.target='_blank';l.rel='noopener noreferrer';li.appendChild(l);}else li.appendChild(h('code',null,url));ul.appendChild(li);}
     pr.appendChild(ul);box.appendChild(pr);
@@ -2914,12 +2914,23 @@ async function devWiki(q){
   let pages=/^[a-z]{2}$/.test(lang)&&lang!=='en'?await look(lang):[];if(!pages.length)pages=await look('en');
   return pages;
 }
+// Web search through the game server (SearXNG on Hugging Face, see src/search.js): free, no AI involved.
+async function devSearch(q){
+  const base=serverBase();if(!base)return [];
+  try{const lang=String(navigator.language||'en').slice(0,2).toLowerCase();
+    const r=await fetch(`${base}/api/search?q=${encodeURIComponent(q)}&lang=${encodeURIComponent(lang)}`,{signal:AbortSignal.timeout?AbortSignal.timeout(12000):undefined});
+    const j=r.ok?await r.json():null;return j&&j.ok&&Array.isArray(j.results)?j.results.slice(0,5):[];}catch(e){return [];}
+}
 // one mini helper's job -> a note for the helper ({kind,label,text,sources}) or null
 async function devResearch(t,all){
   if(t.kind==='web'){
-    const pages=await devWiki(t.q);if(!pages.length)return null;
-    return {kind:'web',label:t.label,text:pages.map(p=>`Wikipedia: ${p.title}\n${p.extract}`).join('\n\n').slice(0,3500),
-      sources:pages.map(p=>({title:String(p.title).slice(0,80),url:String(p.fullurl||'')}))};
+    const [hits,pages]=await Promise.all([devSearch(t.q),devWiki(t.q)]);
+    if(!hits.length&&!pages.length)return null;
+    const parts=[];
+    if(hits.length)parts.push('Web search results:\n'+hits.map((x,i)=>`${i+1}. ${x.title} (${x.url})${x.content?'\n   '+x.content:''}`).join('\n'));
+    if(pages.length)parts.push(pages.map(p=>`Wikipedia: ${p.title}\n${p.extract}`).join('\n\n'));
+    const src=[...pages.map(p=>({title:String(p.title).slice(0,80),url:String(p.fullurl||'')})),...hits.slice(0,3).map(x=>({title:String(x.title).slice(0,80),url:String(x.url)}))];
+    return {kind:'web',label:t.label,text:parts.join('\n\n').slice(0,3500),sources:src.slice(0,3)};
   }
   const chunks=await devLoadCode();
   const sameQ=t.second&&all.some(x=>x!==t&&!x.second&&x.q===t.q);
@@ -3052,8 +3063,9 @@ function rsaiTag(msg,q){
 function aiDots(){const d=aiSay('a dots','',true);d.innerHTML='<i></i><i></i><i></i>';d.setAttribute('aria-label','Thinking');placeChat();return d;}
 function aiSources(msg,src){
   if(!Array.isArray(src)||!src.length||!msg)return;const w=h('div','aisrc');
-  for(const s of src.slice(0,4)){if(!s||!/^https:\/\/[a-z]{2,3}\.wikipedia\.org\//.test(String(s.url)))continue;
-    const a=h('a',null,'📖 '+String(s.title||'Wikipedia').slice(0,60));a.href=s.url;a.target='_blank';a.rel='noopener noreferrer';w.appendChild(a);}
+  for(const s of src.slice(0,4)){const u=String((s&&s.url)||'');if(!/^https:\/\/[a-z0-9.-]+\.[a-z]{2,}(\/|$)/i.test(u))continue;
+    const wiki=/\.wikipedia\.org\//.test(u);let host='';try{host=new URL(u).host.replace(/^www\./,'');}catch(e){continue;}
+    const a=h('a',null,(wiki?'📖 ':'🔗 ')+String(s.title||host).slice(0,50)+(wiki?'':' · '+host));a.href=u;a.target='_blank';a.rel='noopener noreferrer';w.appendChild(a);}
   if(w.children.length){msg.appendChild(w);placeChat();}
 }
 /* ---- the helper orb: drag it anywhere, tap him for the text bar, he can run a check and send mini helpers to research ---- */
@@ -3170,7 +3182,7 @@ async function crewStart(tasks){
     const web=t.kind==='web',mini=h('div','mini work away'+(web?' web':''));
     mini.innerHTML=`<div class="desk"><div class="mo"><div class="sw"></div>${MINI_FACE}</div><div class="scr"><div class="ln">${'<b></b>'.repeat(16)}</div><div class="ok">✓</div></div><div class="stand"></div><div class="kb">${'<i></i>'.repeat(8)}</div></div>`;
     for(const [i,b] of [...mini.querySelectorAll?mini.querySelectorAll('.ln b'):[]].entries())b.style.width=(38+((i*37)%55))+'%';
-    const cap=h('div','cap');cap.appendChild(h('small',null,web?'🌐 LOOKING IT UP':'💻 READING THE CODE'));cap.title='Runs on your device: no cloud call';cap.appendChild(document.createTextNode(String(t.label||'').slice(0,40)));
+    const cap=h('div','cap');cap.appendChild(h('small',null,web?'🌐 SEARCHING THE WEB':'💻 READING THE CODE'));cap.title='Runs on your device: no cloud call';cap.appendChild(document.createTextNode(String(t.label||'').slice(0,40)));
     mini.appendChild(cap);card.appendChild(mini);minis.push(mini);
   });
   aiLogEl.appendChild(card);aiLogEl.scrollTop=aiLogEl.scrollHeight;placeChat();
@@ -3260,7 +3272,12 @@ async function collectChecks(assets){
         const r=await fetch(base+'/api/health',{cache:'no-store',signal:ctl.signal});clearTimeout(to);ms=Math.round(performance.now()-t0);j=await r.json();ok=!!(j&&j.ok);}catch(e){}
       add(ok?'✅':'⚠️','Game server',ok?`online (${ms} ms to answer)${j.match==='server'?', runs matches':''}`:'not answering');
       if(ok){const ws=await testSocket(base);
-        add(ws.ok?(ws.rtt!=null&&ws.rtt>180?'•':'✅'):'⚠️','Live connection',ws.ok?`connected in ${ws.connect} ms${ws.rtt!=null?`, ping ${ws.rtt} ms`:''}`:`failed (${ws.why})`);}
+        add(ws.ok?(ws.rtt!=null&&ws.rtt>180?'•':'✅'):'⚠️','Live connection',ws.ok?`connected in ${ws.connect} ms${ws.rtt!=null?`, ping ${ws.rtt} ms`:''}`:`failed (${ws.why})`);
+        if(j.search){   // which web search engines (SearXNG on Hugging Face) answer right now
+          let st=null;try{const r=await fetch(base+'/api/search?test=1',{cache:'no-store',signal:AbortSignal.timeout?AbortSignal.timeout(15000):undefined});st=await r.json();}catch(e){}
+          const e=st&&Array.isArray(st.engines)?st.engines:null;
+          add(e&&e.some(x=>x.ok)?'✅':'•','Web search',!e?(st&&st.reason==='slow_down'?'checked a moment ago':'not reachable'):e.map(x=>`${x.host.replace('.hf.space','')}: ${x.ok?`works (${x.how==='json'?'JSON':'results page'}, ${x.ms} ms)`:'not answering'}`).join(' · ')+(e.some(x=>x.ok)?'':' (Wikipedia still works)'));
+        }}
     }
     add(NET.netState==='ready'?'✅':'•','Multiplayer',`server list ${NET.netState}${NET.servers?`, ${NET.servers.length} match${NET.servers.length===1?'':'es'} open`:''}${LOCAL.mode==='online'?`, in a match (${M?M.ph:'-'}${NET.gameRtt?`, ping ${Math.round(NET.gameRtt)} ms`:''})`:''}`);
     const {e:errs,w:warns}=logCounts();add(errs?'⚠️':'✅','Game log',`${errs} error${errs===1?'':'s'}, ${warns} warning${warns===1?'':'s'}`);

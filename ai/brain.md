@@ -73,7 +73,7 @@ Ask like:
 
 ## about-helper
 Answer:
-I'm the Rocket Strike helper: the orb with the face. I run right here on your device, so I answer instantly. For harder questions I ask the cloud helper on the game server. My mini helpers search the game's code or Wikipedia right here on your device first, so that costs just one cloud call.
+I'm the Rocket Strike helper: the orb with the face. I run right here on your device, so I answer instantly. For harder questions I ask the cloud helper on the game server. My mini helpers search the game's code, the web (SearXNG) or Wikipedia first, so that costs just one cloud call.
 - Drag me anywhere.
 - Tap me to open the text bar; tap me again to close it.
 - The pulse button runs a check of your game.
@@ -952,6 +952,8 @@ Ask like:
 - how do i undo what ultra changed
 - what are the mini helpers
 - do mini helpers cost cloud calls
+- can you search the web
+- what is searxng
 - how many cloud calls does it use
 - efficiency modes
 - what is the difference between light and stabilized

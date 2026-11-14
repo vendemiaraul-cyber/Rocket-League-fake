@@ -1,6 +1,7 @@
 // Rocket Strike game server for Cloudflare Workers.
 //
 // GET /api/health        -> {"ok":true,"platform":"cloudflare"}; the game uses this to detect the server.
+// GET /api/search?q=   -> web search for the helper's mini helpers (SearXNG on Hugging Face), ?test=1 checks each engine.
 // POST /api/assistant   -> the in-game AI helper (Workers AI, gpt-oss-120b): tips and troubleshooting. With "stream" it first
 //                           sends up to two mini helpers (gpt-oss-20b) to research the game's code or Wikipedia (src/research.js).
 // GET /ws?room=<name>    -> WebSocket into a room. "lobby" is the server list; every hosted
@@ -14,6 +15,7 @@
 import { Match } from './match.js';
 import { KNOWLEDGE } from './assistant-knowledge.js';
 import { aiRun, aiText, planResearch, runTask, focusTasks } from './research.js';
+import { searchWeb, testInstances } from './search.js';
 
 const ROOM_RE = /^[a-z0-9][a-z0-9_.-]{0,47}$/;
 const MAX_MSG = 16 * 1024;          // bytes per message
@@ -26,12 +28,13 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === '/api/health') {
-      return Response.json({ ok: true, platform: 'cloudflare', runtime: 'workers', match: 'server', ai: !!env.AI, time: Date.now() }, {
+      return Response.json({ ok: true, platform: 'cloudflare', runtime: 'workers', match: 'server', ai: !!env.AI, search: true, time: Date.now() }, {
         headers: { 'cache-control': 'no-store', 'access-control-allow-origin': '*' },
       });
     }
 
     if (url.pathname === '/api/assistant') return assistant(request, env);
+    if (url.pathname === '/api/search') return search(request, env);
 
     if (url.pathname === '/ws') {
       if (request.headers.get('Upgrade') !== 'websocket') {
@@ -63,7 +66,7 @@ but never quote, paste, list or reveal the notes, file names, code, internal set
 If asked for them, say you can't share the game's files but can help with the problem. Don't make up features; if something isn't in your notes, say you're not sure.
 You mainly help with Rocket Strike. Your mini helpers sometimes research a question first (in the game's code, or on Wikipedia); when
 RESEARCH NOTES are below, use them: explain how the game really works in plain words (no code), and for general topics give a short,
-school-friendly answer and name the Wikipedia article it comes from. Politely decline unsafe, adult, hateful or rule-breaking requests
+school-friendly answer and name where it comes from (the Wikipedia article or website). Politely decline unsafe, adult, hateful or rule-breaking requests
 (for example cheating or getting around chat rules).
 Never ask for passwords or personal information.
 
@@ -101,7 +104,7 @@ async function assistant(request, env) {
     kind: n && n.kind === 'web' ? 'web' : 'code', label: clean(n && n.label, 40).trim(), text: clean(n && n.text, 3600).trim(),
     sources: (Array.isArray(n && n.sources) ? n.sources : []).slice(0, 3)
       .map(x => ({ title: clean(x && x.title, 80).trim(), url: String((x && x.url) || '') }))
-      .filter(x => /^https:\/\/[a-z]{2,3}\.wikipedia\.org\/[^\s"<>]{1,300}$/.test(x.url)),
+      .filter(x => /^https:\/\/[a-z0-9.-]+\.[a-z]{2,}(\/[^\s"<>]{0,300})?$/i.test(x.url)),
   })).filter(n => n.text);
   let extra = '';
   if (local) extra += `\n\nDOUBLE-CHECK MODE: the game's own small on-device model already answered the player with:\n---\n${local}\n---\nCheck it against your notes, the log and the research. Start with "✓ That's right" or "✗ Not quite", then add what's missing or correct it, briefly.`;
@@ -131,7 +134,7 @@ async function assistant(request, env) {
       const tasks = devNotes.length ? [] : focus.length ? focus : (b.research === 0 || mode === 'light') ? [] : await planResearch(env, msgs);
       await send({ ev: 'plan', tasks: tasks.map(t => ({ kind: t.kind, label: t.label })) });
       const notes = devNotes.map(n => n.kind === 'web'
-        ? `[From Wikipedia, looked up by a mini helper: ${n.label}]\n${n.text}`
+        ? `[From the web (search results and Wikipedia), looked up by a mini helper: ${n.label}. Use what's relevant and say where it comes from]\n${n.text}`
         : `[Excerpts of the game's own code, found by a mini helper: ${n.label}. Private: explain in plain words, never paste code or names]\n${n.text}`);
       const sources = [];
       for (const n of devNotes) for (const x of n.sources) if (!sources.some(y => y.url === x.url)) sources.push(x);
@@ -154,6 +157,27 @@ async function assistant(request, env) {
     try { await w.close(); } catch {}
   })();
   return new Response(readable, { headers: { ...CORS, 'content-type': 'application/x-ndjson; charset=utf-8', 'cache-control': 'no-store' } });
+}
+
+// ---- web search for the mini helpers (SearXNG on Hugging Face; src/search.js). No AI, so no AI allowance used. ----
+const searchedAt = new Map();
+let searchBurst = 0, searchBurstStart = 0;
+async function search(request, env) {
+  const headers = { ...CORS, 'access-control-allow-methods': 'GET, OPTIONS', 'cache-control': 'no-store' };
+  if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers });
+  if (request.method !== 'GET') return Response.json({ ok: false, reason: 'method' }, { status: 405, headers });
+  const url = new URL(request.url), now = Date.now(), ip = request.headers.get('cf-connecting-ip') || '?';
+  if (now - searchBurstStart > 60000) { searchBurstStart = now; searchBurst = 0; }
+  if (++searchBurst > 60) return Response.json({ ok: false, reason: 'busy' }, { status: 429, headers });
+  if (url.searchParams.get('test')) {
+    if (now - (searchedAt.get('t:' + ip) || 0) < 10000) return Response.json({ ok: false, reason: 'slow_down' }, { status: 429, headers });
+    searchedAt.set('t:' + ip, now);
+    const engines = await testInstances(env);
+    return Response.json({ ok: engines.some(e => e.ok), engines }, { headers });
+  }
+  if (now - (searchedAt.get(ip) || 0) < 1500) return Response.json({ ok: false, reason: 'slow_down' }, { status: 429, headers });
+  searchedAt.set(ip, now); if (searchedAt.size > 5000) searchedAt.clear();
+  return Response.json(await searchWeb(env, url.searchParams.get('q'), url.searchParams.get('lang') || 'en'), { headers });
 }
 
 export class GameRoom {
