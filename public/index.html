@@ -1905,7 +1905,8 @@ function netTick(dt){
     const hp=NET.serverRun?(sv&&sv.presence.g&&typeof sv.presence.g==='object'?{peer:'srv',presence:sv.presence,updatedAt:sv.updatedAt,recvAt:sv.recvAt}:null)
       :ps.find(p=>!p.sameTab&&p.presence&&p.presence.host&&p.presence.g&&typeof p.presence.g==='object');
     if(hp){M=hp.presence.g;NET.hostAge=clamp((Date.now()-hp.updatedAt)/1000,0,0.5);NET.hostSeenAt=performance.now();
-      NET.hostPeer=hp.peer;NET.hostTs=hp.presence.ts;NET.hostRecv=hp.recvAt;NET.hostRt=+hp.presence.rt||0;NET.hostP=hp;}
+      NET.hostPeer=hp.peer;NET.hostTs=hp.presence.ts;NET.hostRecv=hp.recvAt;NET.hostRt=+hp.presence.rt||0;NET.hostP=hp;
+      takeBackFromAutopilot();}
     else if(performance.now()-NET.hostSeenAt>(M?4000:9000)){leaveOnline(NET.serverRun?'Lost the connection to the game server.':'The host left, so the server closed.');return;}
   }
   pollChat(ps);trackTick(ps);hostReportsTick(ps);sanctionsTick();
@@ -1916,7 +1917,7 @@ function netTick(dt){
 function netSend(){
   if(LOCAL.mode!=='online'||!NET.gr)return;
   me.nick=nick();
-  const pr={ts:Math.round(performance.now()),rt:Math.round(NET.gameRtt||0),nm:nick(),col:colourIdx,c:me.active?encodeCar(me):null,v:LOCAL.vote,ch:NET.chatOut,rp:NET.report||null};
+  const pr={ts:Math.round(performance.now()),hid:document.hidden?1:0,rt:Math.round(NET.gameRtt||0),nm:nick(),col:colourIdx,c:me.active?encodeCar(me):null,v:LOCAL.vote,ch:NET.chatOut,rp:NET.report||null};
   if(NET.isHost&&NET.serverRun){pr.st=NET.startN||0;pr.sn=NET.snList||[];pr.sid=NET.snId||0;if(NET.kickList&&NET.kickList.length)pr.kick=NET.kickList;}
   if(isAuth()&&M){M.tk=(M.tk+1)%1e6;M.b=encodeBall();
     {const now=performance.now(),ec=[];for(const p of NET.gr.peers())if(!p.sameTab&&p.presence&&typeof p.presence.ts==='number'&&p.recvAt)ec.push([p.peer,p.presence.ts,Math.round(now-p.recvAt)]);M.echo=ec;}M.bot=botCar.active?encodeCar(botCar):null;M.hn=nick();
@@ -1941,16 +1942,31 @@ function clientBall(){
 function syncRemotes(dt){
   const seen=new Set();
   if(LOCAL.mode==='online'&&NET.gr&&livePhase()){
+    // cars the server is driving for players who are away (their tab is hidden, or they left)
+    const AP=new Map();if(NET.serverRun&&M&&Array.isArray(M.ap))for(const a of M.ap)if(Array.isArray(a)&&a.length>=13&&typeof a[0]==='string')AP.set(a[0],a);
+    const live=new Set();
     for(const p of NET.gr.peers()){
-      if(p.sameTab)continue;const pr=p.presence||{};const r=rosterEntry(p.peer);
-      if(!r||!Array.isArray(pr.c))continue;
+      if(p.sameTab)continue;const pr=p.presence||{};const r=rosterEntry(p.peer);const ap=AP.get(p.peer);
+      if(!r||(!ap&&!Array.isArray(pr.c)))continue;
+      live.add(p.peer);
       const ci=Math.max(0,(pr.col|0)%COLOURS.length);
       let car=remotes.get(p.peer);
       if(!car){car=makeCar(COLOURS[ci][1],r[1]);car.proxy=true;car.active=true;car.colIdx=ci;remotes.set(p.peer,car);}
       seen.add(p.peer);
       if(car.team!==r[1])setCarTeam(car,r[1]);
       if(car.colIdx!==ci){car.colIdx=ci;car.paint.color.setHex(COLOURS[ci][1]);}
-      car.nick=peerName(p);car.rt=+pr.rt||0;netCar(car,p.peer,pr.c,pr.ts,p.recvAt,dt);
+      car.rt=+pr.rt||0;
+      if(ap){if(car.src!=='srv'){car.src='srv';car.snaps=[];car.lastTs=-1;}car.nick=peerName(p)+' · AUTO';netCar(car,NET.hostPeer,ap.slice(2),NET.hostTs,NET.hostRecv,dt);}
+      else{if(car.src!=='p'){car.src='p';car.snaps=[];car.lastTs=-1;}car.nick=peerName(p);netCar(car,p.peer,pr.c,pr.ts,p.recvAt,dt);}
+    }
+    // players who left mid-match: the server keeps their car going too
+    for(const [peer,a] of AP){
+      if(live.has(peer)||peer===NET.myPeer)continue;const r=rosterEntry(peer);if(!r)continue;
+      let car=remotes.get(peer);
+      if(!car){car=makeCar(COLOURS[0][1],r[1]);car.proxy=true;car.active=true;car.colIdx=0;remotes.set(peer,car);}
+      seen.add(peer);if(car.team!==r[1])setCarTeam(car,r[1]);
+      if(car.src!=='srv'){car.src='srv';car.snaps=[];car.lastTs=-1;}
+      car.nick=(cleanName(a[1])||'PLAYER')+' · AUTO';netCar(car,NET.hostPeer,a.slice(2),NET.hostTs,NET.hostRecv,dt);
     }
     if(!isAuth()&&M&&Array.isArray(M.bot)){const br=rosterEntry('bot');
       if(br){if(!botCar.proxy||!botCar.root.visible){botCar.proxy=true;botCar.snapNext=true;showCar(botCar,true);}
@@ -2551,6 +2567,18 @@ function onPhase(ph,prev){
 }
 // Joining players mirror the host's match: whatever the host is doing, we do too, even if we missed
 // a moment of it (a slow frame, a dropped update, a window in the background).
+// While our tab was hidden the server drove our car. When we're back, carry on from where it is.
+function takeBackFromAutopilot(){
+  if(!NET.serverRun||!M||document.hidden)return;
+  const a=Array.isArray(M.ap)?M.ap.find(x=>Array.isArray(x)&&x[0]===NET.myPeer):null;
+  if(!a){NET.tookBack=false;return;}
+  if(NET.tookBack||!me.active||!livePhase())return;
+  const s=a.slice(2).map(Number);if(s.length<11||!s.every(isFinite))return;
+  me.pos.set(s[0],Math.max(CAR_H,s[1]),s[2]);me.q.set(s[3],s[4],s[5],s[6]).normalize();me.vel.set(s[7],s[8],s[9]);me.angVel.set(0,0,0);
+  me.grounded=!!(s[10]&2);sF.set(0,0,1).applyQuaternion(me.q);me.yaw=Math.atan2(sF.x,sF.z);me.visQ.copy(me.q);
+  if(me.grounded)me.q.setFromAxisAngle(Yax,me.yaw);
+  me.flipT=-1;me.canFlip=false;snapCam=true;NET.tookBack=true;logEv('info','Took the car back from autopilot');toast('Welcome back. The autopilot kept your car going.');
+}
 function followHost(){
   if(!M||LOCAL.mode!=='online')return;
   const ph=M.ph;
