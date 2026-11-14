@@ -80,6 +80,15 @@ Without it, players can still join a server through **MULTIPLAYER → Game serve
 
 Which server a player uses, first match wins: `?server=https://<worker-address>` in the page link, then a server they picked in **MULTIPLAYER → Game server → CHANGE** (saved only on their device), then the site's `server.json` (from the host's `GAME_SERVER` setting, above), then `GAME_SERVER` in `public/index.html`, then the site itself.
 
+## Messages to Discord
+
+Settings → Community has **Send a message to Discord directly here**. The game posts to `/api/discord` on the game server, and the Worker forwards it to a Discord webhook with the player's name and anonymous player ID (`RS-XXXXXX`, kept in their browser). To turn it on:
+
+1. In Discord: **Edit Channel → Integrations → Webhooks → New Webhook**, pick the channel, **Copy Webhook URL**.
+2. In Cloudflare: your Worker → **Settings → Variables and Secrets → Add**, type **Secret**, name `DISCORD_WEBHOOK`, paste the URL, save.
+
+The webhook stays secret (it's never in the code). Limits: 300 characters, one message every 30 seconds per player, about 20 a minute in total, no @everyone/@here pings, and the game's swear filter runs first. `/api/health` reports `"discord": true` when it's set up.
+
 ## Notes
 
 - Each WebSocket message counts toward your Durable Objects usage. The free plan covers casual play; check Cloudflare's pricing page if lots of people play at once.

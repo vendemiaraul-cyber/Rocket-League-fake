@@ -1,6 +1,7 @@
 // Rocket Strike game server for Cloudflare Workers.
 //
 // GET /api/health        -> {"ok":true,"platform":"cloudflare"}; the game uses this to detect the server.
+// POST /api/discord     -> posts a player's message to the Discord server (webhook kept in the DISCORD_WEBHOOK secret).
 // GET /ws?room=<name>    -> WebSocket into a room. "lobby" is the server list; every hosted
 //                           match gets its own room named by its code (e.g. "rs-ab12cd").
 // anything else          -> the static game in ./public.
@@ -22,10 +23,12 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === '/api/health') {
-      return Response.json({ ok: true, platform: 'cloudflare', runtime: 'workers', match: 'server', time: Date.now() }, {
+      return Response.json({ ok: true, platform: 'cloudflare', runtime: 'workers', match: 'server', discord: !!env.DISCORD_WEBHOOK, time: Date.now() }, {
         headers: { 'cache-control': 'no-store', 'access-control-allow-origin': '*' },
       });
     }
+
+    if (url.pathname === '/api/discord') return discordMessage(request, env);
 
     if (url.pathname === '/ws') {
       if (request.headers.get('Upgrade') !== 'websocket') {
@@ -40,6 +43,46 @@ export default {
     return env.ASSETS.fetch(request);
   },
 };
+
+// ---- messages from the game to the Discord server ----
+// The webhook address is a secret (Cloudflare: Worker > Settings > Variables and Secrets > DISCORD_WEBHOOK),
+// so it never appears in the game's code. Players can send one message every 30 seconds.
+const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'POST, OPTIONS', 'access-control-allow-headers': 'content-type', 'access-control-max-age': '86400' };
+const HOOK_RE = /^https:\/\/(?:ptb\.|canary\.)?(?:discord|discordapp)\.com\/api\/webhooks\/\d+\/[\w-]+$/;
+const CTRL = new RegExp('[\\u0000-\\u001f\\u007f-\\u009f\\u00ad\\u061c\\u180e\\u200b-\\u200f\\u2028-\\u202e\\u2060-\\u206f\\ufeff\\ue000-\\uf8ff]', 'g');
+const lastSent = new Map();
+let burstStart = 0, burstCount = 0;
+async function discordMessage(request, env) {
+  const json = (o, status = 200) => Response.json(o, { status, headers: { ...CORS, 'cache-control': 'no-store' } });
+  if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
+  if (request.method !== 'POST') return json({ ok: false, reason: 'method' }, 405);
+  const hook = String(env.DISCORD_WEBHOOK || '').trim();
+  if (!HOOK_RE.test(hook)) return json({ ok: false, reason: 'not_set_up' }, 503);
+  let b; try { b = await request.json(); } catch { return json({ ok: false, reason: 'bad_request' }, 400); }
+  const clean = (v, n) => String(v == null ? '' : v).replace(CTRL, ' ').replace(/\s+/g, ' ').trim().slice(0, n);
+  const text = clean(b && b.text, 300);
+  const name = (clean(b && b.name, 16) || 'PLAYER').replace(/discord|clyde/gi, '*');
+  const id = /^RS-[A-Z0-9]{6}$/.test(b && b.id) ? b.id : 'unknown';
+  if (text.length < 2) return json({ ok: false, reason: 'empty' }, 400);
+  const now = Date.now(), ip = request.headers.get('cf-connecting-ip') || '?';
+  const last = Math.max(lastSent.get(ip) || 0, lastSent.get(id) || 0);
+  if (now - last < 30000) return json({ ok: false, reason: 'slow_down', wait: Math.ceil((30000 - (now - last)) / 1000) }, 429);
+  if (now - burstStart > 60000) { burstStart = now; burstCount = 0; }
+  if (++burstCount > 20) return json({ ok: false, reason: 'busy' }, 429);
+  lastSent.set(ip, now); if (id !== 'unknown') lastSent.set(id, now);
+  if (lastSent.size > 5000) lastSent.clear();
+  const from = clean(request.headers.get('origin') || '', 100).replace(/^https?:\/\//, '');
+  const payload = {
+    username: (name + ' · Rocket Strike').slice(0, 80),
+    allowed_mentions: { parse: [] },   // no @everyone, @here or pings
+    embeds: [{ description: text, color: 0xff7a1a, footer: { text: 'Player ID ' + id + (from ? ' · sent from ' + from : '') }, timestamp: new Date(now).toISOString() }],
+  };
+  try {
+    const r = await fetch(hook + '?wait=true', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+    if (!r.ok) return json({ ok: false, reason: 'discord_error', status: r.status }, 502);
+  } catch { return json({ ok: false, reason: 'discord_error' }, 502); }
+  return json({ ok: true });
+}
 
 export class GameRoom {
   constructor(ctx, env) {
