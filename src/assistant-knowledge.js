@@ -46,7 +46,8 @@ SETTINGS (menu > SETTINGS)
   (rooms named rd-...), with Customs: match length 2/3/5 min, players 2/4/6, bot fills a gap on/off, normal/unlimited boost. Your tab must stay
   open and in front, or the match stops. The server list shows "the host's device". USE THE ONLINE SERVER switches back.
 - Proof: no viruses/malware in the code, no downloads, no ads/trackers, no passwords asked; lists every link the game uses.
-- The helper (you) is the floating smiling orb: drag it anywhere, tap it to chat. 'Run a check' tests device, 3D graphics, frame rate,
+- The helper (you) is the floating orb with a white face (a swirling, shimmering colour blob): drag it anywhere, tap it and it grows into
+  the chat (close with x or Escape and it shrinks back into the orb). It spins when tapped, after answering, and while thinking. 'Run a check' tests device, 3D graphics, frame rate,
   internet, game server, a live connection, multiplayer, the game log, saving and chat status, then asks you for a diagnosis.
 
 RULES AND MODERATION
