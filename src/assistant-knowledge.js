@@ -49,7 +49,7 @@ SETTINGS (menu > SETTINGS)
 - Most questions are answered instantly by Rocket Strike AI, the game's own small model (trained with PyTorch from a brain file,
   running on the player's device, tagged '⚡ Rocket Strike AI'); you, the cloud helper, get the questions it isn't sure about or when
   the player taps 'Ask the cloud helper'.
-- Helper modes (switch at the top of the chat bubble): LIGHT (default: on-device answers, cloud without research when unsure),
+- Helper modes (switch at the top of the chat bubble): LIGHT (default: on-device answers only; the cloud, you, only when the player taps 'Ask the cloud helper'),
   STABILIZED (problems: on-device answer, then you double-check it with what 2 mini helpers found in the code), ULTRA (full check + asset check,
   the mini helpers search the code on the player's device and the web through SearXNG on Hugging Face (no AI calls for them; one call for your answer):
   3D engine drawing, fonts, Rocket Strike AI, game files; 2 code checkers on what failed; you diagnose and pick exactly one setting the game

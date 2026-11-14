@@ -82,7 +82,7 @@ Which server a player uses, first match wins: `?server=https://<worker-address>`
 
 ## Rocket Strike AI (our own model)
 
-The helper answers most questions with the game's **own AI**, trained with **PyTorch** and running on the player's device: instant, free, no daily limits. Only questions it isn't sure about go to the cloud helper below.
+The helper answers most questions with the game's **own AI**, trained with **PyTorch** and running on the player's device: instant, free, no daily limits. In Light mode (the default) it never calls the cloud by itself; Stabilized and Ultra use the cloud helper below for problems and harder questions.
 
 - **The brain:** `ai/brain.md`. Each `##` topic has an answer, keywords and example questions (English and Italian). To teach it something, edit that file.
 - **Training:** `ai/train.py` (with `ai/features.py`, `ai/data.py`, `ai/export.py`). Every question becomes hashed word and letter-piece features; an `EmbeddingBag` averages their vectors and a small neural network scores each topic. The trainer measures itself on questions it never saw, calibrates its confidence, picks the threshold at which its answers are right about 90% of the time, and writes `ai/report.md`.
@@ -101,7 +101,7 @@ A floating smiling orb in the game is a helper (it answers with Rocket Strike AI
 - Limits: one question every 5 seconds per player, about 30 a minute in total, 600 characters per question. Workers AI's free allowance is 10,000 neurons a day: roughly 60 plain questions, or about half as many when the mini helpers research. After that it answers "couldn't answer right now" until the next day (or upgrade to Workers Paid).
 - **Thought box:** every question gets a box above the answer that shows the real steps as they happen (what Rocket Strike AI thinks and how sure it is, the mode, what each mini helper searched and found, the cloud call and how long it took). It folds to "Thought for X s" when done (tap to open), and suggests up to 3 similar questions from the brain (`asks` in `rs-ai.json`) under "You could also ask".
 - **Modes** (top of the chat bubble, saved in the browser):
-  - **Light** (default): Rocket Strike AI answers; when unsure the cloud answers without mini helpers. The pulse check is diagnosed on the device. Cheapest.
+  - **Light** (default): Rocket Strike AI answers on the device and never calls the cloud by itself: when unsure it gives its best guess (if at least 30% sure) or says it doesn't know, with a "☁ Ask the cloud helper" button. The pulse check is diagnosed on the device. No cloud calls unless the player asks.
   - **Stabilized**: for problems and errors, Rocket Strike AI answers first and the cloud double-checks it (`local`), with what **2 code checkers** find on the device (`notes`): one follows the question, the second reads other parts of the code (or follows the errors in the log).
   - **Ultra**: a full check plus asset checks (3D engine drawing frames, fonts, Rocket Strike AI loads and answers, game files reachable), 2 code checkers (on the device) on whatever failed, a diagnosis, and exactly **one** fix the game applies (`fixes` → `FIX: <id>`: graphics quality, resolution, glow, server choice, reconnect), with Undo. If everything passes it changes nothing.
 - Update `src/assistant-knowledge.js` when the game changes, so the helper stays accurate.
