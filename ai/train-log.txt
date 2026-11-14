@@ -1,17 +1,17 @@
-57 topics, 619 example questions
-check run: 19599 training examples, 456 held-out
-  epoch  5  loss 0.5854
-  epoch 10  loss 0.5063
-  epoch 15  loss 0.4810
-  epoch 20  loss 0.4701
+57 topics, 621 example questions
+check run: 19661 training examples, 456 held-out
+  epoch  5  loss 0.5850
+  epoch 10  loss 0.5037
+  epoch 15  loss 0.4808
+  epoch 20  loss 0.4683
+  epoch 25  loss 0.4616
+  epoch 30  loss 0.4600
+held-out accuracy 0.730, temperature 1.0, threshold 0.6, answers 66.52% of game questions at 90.60% precision
+final run: 23195 training examples
+  epoch  5  loss 0.5842
+  epoch 10  loss 0.5053
+  epoch 15  loss 0.4821
+  epoch 20  loss 0.4689
   epoch 25  loss 0.4627
-  epoch 30  loss 0.4606
-held-out accuracy 0.715, temperature 1.0, threshold 0.65, answers 61.61% of game questions at 90.58% precision
-final run: 23133 training examples
-  epoch  5  loss 0.5853
-  epoch 10  loss 0.5064
-  epoch 15  loss 0.4831
-  epoch 20  loss 0.4700
-  epoch 25  loss 0.4637
-  epoch 30  loss 0.4613
-done in 87 s
+  epoch 30  loss 0.4605
+done in 94 s
