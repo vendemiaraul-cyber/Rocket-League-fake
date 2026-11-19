@@ -1,6 +1,7 @@
 // Rocket Strike game server for Cloudflare Workers.
 //
 // GET /api/health        -> {"ok":true,"platform":"cloudflare"}; the game uses this to detect the server.
+// POST /api/report      -> forwards a player report to Discord (REPORT_WEBHOOK secret), see src/reports.js.
 // GET /api/search?q=   -> web search for the helper's mini helpers (SearXNG on Hugging Face), ?test=1 checks each engine.
 // POST /api/assistant   -> the in-game AI helper (Workers AI, gpt-oss-120b): tips and troubleshooting. With "stream" it first
 //                           sends up to two mini helpers (gpt-oss-20b) to research the game's code or Wikipedia (src/research.js).
@@ -16,6 +17,7 @@ import { Match } from './match.js';
 import { KNOWLEDGE } from './assistant-knowledge.js';
 import { aiRun, aiText, planResearch, runTask, focusTasks } from './research.js';
 import { searchWeb, testInstances } from './search.js';
+import { report } from './reports.js';
 
 const ROOM_RE = /^[a-z0-9][a-z0-9_.-]{0,47}$/;
 const MAX_MSG = 16 * 1024;          // bytes per message
@@ -28,13 +30,14 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === '/api/health') {
-      return Response.json({ ok: true, platform: 'cloudflare', runtime: 'workers', match: 'server', ai: !!env.AI, search: true, time: Date.now() }, {
+      return Response.json({ ok: true, platform: 'cloudflare', runtime: 'workers', match: 'server', ai: !!env.AI, search: true, reports: !!env.REPORT_WEBHOOK, time: Date.now() }, {
         headers: { 'cache-control': 'no-store', 'access-control-allow-origin': '*' },
       });
     }
 
     if (url.pathname === '/api/assistant') return assistant(request, env);
     if (url.pathname === '/api/search') return search(request, env);
+    if (url.pathname === '/api/report') return report(request, env, CORS);
 
     if (url.pathname === '/ws') {
       if (request.headers.get('Upgrade') !== 'websocket') {
@@ -225,6 +228,17 @@ export class GameRoom {
   async fetch(request) {
     const url = new URL(request.url);
     const room = (url.searchParams.get('room') || '').toLowerCase();
+    // internal only (from /api/report in this Worker): who is in this room right now, with the names they use
+    if (url.pathname === '/internal/peers') {
+      const peers = [];
+      for (const ws of this.ctx.getWebSockets()) {
+        const a = this.attOf(ws); if (!a) continue;
+        const p = this.parsed.get(a.peer);
+        peers.push({ peer: a.peer, nm: String((p && p.d && p.d.nm) || '').slice(0, 16) });
+      }
+      for (const [k, v] of this.recent || []) if (Date.now() - v.at < 120000 && !peers.some(x => x.peer === k)) peers.push({ peer: k, nm: v.nm, left: true });
+      return Response.json({ peers });
+    }
     const limit = room === 'lobby' ? MAX_PEERS.lobby : MAX_PEERS.game;
     if (this.ctx.getWebSockets().length >= limit) {
       return new Response('Room is full', { status: 503 });
@@ -286,6 +300,11 @@ export class GameRoom {
   drop(ws) {
     const peer = this.peerOf(ws);
     if (!peer) return;
+    // remember who just left for 2 minutes (a report's follow-up can name a player who was removed)
+    const p = this.parsed.get(peer);
+    this.recent = this.recent || new Map();
+    this.recent.set(peer, { nm: String((p && p.d && p.d.nm) || '').slice(0, 16), at: Date.now() });
+    for (const [k, v] of this.recent) if (Date.now() - v.at > 120000) this.recent.delete(k);
     this.presence.delete(peer);
     this.parsed.delete(peer);
     this.rate.delete(peer);
