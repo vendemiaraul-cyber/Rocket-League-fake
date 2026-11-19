@@ -10,6 +10,7 @@ Built with three.js; multiplayer runs on Cloudflare Workers with Durable Objects
 | `public/index.html` | The main page: what the game is, how to play with friends online and through invite links, and the PLAY button. Shows whether the game server is online and how many matches are open, and links to the live Cloudflare and Netlify sites (change those in your own copy). |
 | `public/play.html` | The whole game (one file). Plays against the bot anywhere; online play turns on when it finds the server. |
 | `src/worker.js` | The multiplayer server: serves the game, answers `/api/health`, relays players through rooms at `/ws`, and runs each match. |
+| `src/reports.js` | Sends player reports to your Discord through the `REPORT_WEBHOOK` secret. |
 | `src/match.js`, `src/physics.js` | The match the server runs (lobby, vote, kickoff, ball, bot, goals, clock) and its physics, copied from the game. |
 | `wrangler.jsonc` | Cloudflare config: static assets, the `GameRoom` Durable Object and its migration. |
 | `functions/` | Pages Functions: on a Cloudflare Pages site, forward `/api/health` and `/ws` to a linked Worker, or (`server.json`) send players straight to it. |
@@ -30,6 +31,15 @@ Built with three.js; multiplayer runs on Cloudflare Workers with Durable Objects
 - In the lobby everyone's car is parked next to yours with their name, and the host is marked HOST (also on their name tag during the match).
 - **Settings** (menu → SETTINGS): Join our Discord server; graphics (quality, resolution, glow, FPS counter, saved in the browser); Custom server (paste a server link, or run the matches you host on your own device, `rd-…` rooms, with customs: match length, players, bot, unlimited boost); Proof (what the game does and every link it uses).
 - No accounts: anyone who opens the link can host or join. Names, strikes and suspensions are stored in each player's browser.
+
+## Reports to Discord
+
+When a player reports someone, the game also posts the report to a channel on your Discord server, and posts again when the host's game confirms it and acts (strike, warning, removal). It goes through the game server (`POST /api/report`, `src/reports.js`), which only forwards a report when both players are really in that match, uses the names the room sees, removes mentions and links, and rate-limits each player. The webhook address is a secret and never goes in the code:
+
+1. In Discord: **Server Settings → Integrations → Webhooks → New Webhook**, pick the channel (for example a private #reports channel), **Copy Webhook URL**.
+2. In Cloudflare: **Workers & Pages → your Worker → Settings → Variables and Secrets → Add**, type **Secret**, name `REPORT_WEBHOOK`, paste the URL, **Deploy**.
+
+`/api/health` then shows `"reports": true`. Without the secret, reports work in the game exactly as before.
 
 ## Deploy on Cloudflare
 

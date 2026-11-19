@@ -826,7 +826,7 @@ Ask like:
 
 ## report
 Answer:
-To report a player: open the **players panel** in a match, pick the player, tap **REPORT** and choose the reasons. The host's game checks the report (cheating is checked with a movement analysis; a confirmed slur gives two strikes).
+To report a player: open the **players panel** in a match, pick the player, tap **REPORT** and choose the reasons. The host's game checks the report (cheating is checked with a movement analysis; a confirmed slur gives two strikes). Reports also go to the moderators on the Discord server.
 Keywords: report, cheater, hacker, rude player, segnala, report button, bully, toxic
 Ask like:
 - how do i report someone
@@ -839,6 +839,8 @@ Ask like:
 - hacker in my game
 - how to report
 - bully in chat
+- do reports go to discord
+- do moderators see reports
 
 ## chat
 Answer:

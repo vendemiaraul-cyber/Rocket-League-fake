@@ -70,6 +70,8 @@ RULES AND MODERATION
 - Strikes add up: chat restriction (solve a captcha and agree to the rules to unlock), then suspension from online play for a while.
 - Reports: open the players panel in a match, pick a player and reasons. The host's game re-checks the report: cheating is checked with a
   movement analysis; a confirmed slur gives two strikes. Names that break the rules are refused.
+- Reports (and what the host's game did about them) are also posted to the moderators' channel on the Discord server, when the
+  game server has the Discord webhook set up; the report screen then says 'The moderators got it on Discord too.'
 - Stickers: one every few seconds.
 
 STATUS LINE ("Running on ...") AND WHAT IT MEANS
