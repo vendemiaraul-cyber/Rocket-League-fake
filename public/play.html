@@ -788,7 +788,7 @@ const floor=new THREE.Mesh(new THREE.PlaneGeometry(FIELD_W,FIELD_L).rotateX(-Mat
   new THREE.MeshStandardMaterial({map:fieldMap,emissiveMap:fieldEm,emissive:0xffffff,emissiveIntensity:1.25,roughness:0.6,metalness:0.06}));
 floor.receiveShadow=true;scene.add(floor);
 const ground=new THREE.Mesh(new THREE.PlaneGeometry(1600,1600).rotateX(-Math.PI/2),new THREE.MeshStandardMaterial({color:0x07080f,roughness:1}));
-ground.position.y=-0.06;scene.add(ground);
+ground.position.y=-0.6;scene.add(ground);   // well below the pitch, so low-precision depth buffers can't let it show through
 function wallMat(col){return new THREE.MeshStandardMaterial({color:0x0b1330,transparent:true,opacity:0.5,roughness:0.18,metalness:0.6,
   emissive:col,emissiveMap:hexTex,emissiveIntensity:0.95,side:THREE.DoubleSide,depthWrite:false});}
 const sideWallMat=wallMat(0x5a5cff),backWallMatO=wallMat(0xff6a1a),backWallMatB=wallMat(0x2a7cff);
