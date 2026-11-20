@@ -46,7 +46,7 @@ export class Quat{
 const V=(x=0,y=0,z=0)=>new V3(x,y,z);
 
 // ---- constants (same values as public/index.html) ----
-export const AX=58,AZ=82,RAMP=8,GW=12,GH=9.5,GD=9,CUT=16,CORNER=AX+AZ-CUT,SPAWN_Z=54;
+export const AX=70,AZ=98,RAMP=9,GW=13,GH=10.5,GD=10,RC=26,SPAWN_Z=66;   // RC: corner radius
 export const BALL_R=1.9,BALL_G=-17;
 export const GRAV=-25,JUMP_V=10.5,BOOST_ACC=34,MAX_DRIVE=26,MAX_SPEED=44,FLIP_DUR=0.62,CAR_H=0.8;
 const clamp=(x,a,b)=>x<a?a:x>b?b:x;
@@ -120,7 +120,7 @@ export function stepCar(c,h){
     }
     if(c.vel.y<0)c.vel.y=0;
   }
-  // arena bounds: side ramps begin at |x|=AX-RAMP, chamfered corners, recessed goals
+  // arena bounds: side ramps begin at |x|=AX-RAMP, rounded corners, recessed goals
   const ax=Math.abs(c.pos.x),sx=Math.sign(c.pos.x)||1,XL=AX-RAMP-0.6;
   if(ax>XL){c.pos.x=sx*XL;if(c.vel.x*sx>0)c.vel.x*=-0.3;}
   const inMouth=Math.abs(c.pos.x)<GW-1.4&&c.pos.y<GH-0.9;
@@ -131,10 +131,11 @@ export function stepCar(c,h){
     if(c.pos.y>GH-0.9){c.pos.y=GH-0.9;if(c.vel.y>0)c.vel.y=0;}
     if(Math.abs(c.pos.z)>AZ+GD-2.4){c.pos.z=sz*(AZ+GD-2.4);if(c.vel.z*sz>0)c.vel.z*=-0.3;}
   }else{
-    const cd=(Math.abs(c.pos.x)+Math.abs(c.pos.z)-(CORNER-2.6))/Math.SQRT2;
-    if(cd>0){const nx=(Math.sign(c.pos.x)||1)/Math.SQRT2,nz=sz/Math.SQRT2;c.pos.x-=nx*cd;c.pos.z-=nz*cd;const vn=c.vel.x*nx+c.vel.z*nz;if(vn>0){c.vel.x-=1.3*vn*nx;c.vel.z-=1.3*vn*nz;}}
+    // rounded corners: the car's limit is a circle touching its side limit (XL) and its end limit (AZ-2)
+    const CR=16,qx=Math.abs(c.pos.x)-(XL-CR),qz=Math.abs(c.pos.z)-(AZ-2-CR);
+    if(qx>0&&qz>0){const L=Math.hypot(qx,qz);if(L>CR){const nx=(Math.sign(c.pos.x)||1)*qx/L,nz=sz*qz/L,cd=L-CR;c.pos.x-=nx*cd;c.pos.z-=nz*cd;const vn=c.vel.x*nx+c.vel.z*nz;if(vn>0){c.vel.x-=1.3*vn*nx;c.vel.z-=1.3*vn*nz;}}}
   }
-  if(c.pos.y>48){c.pos.y=48;if(c.vel.y>0)c.vel.y=0;}
+  if(c.pos.y>54){c.pos.y=54;if(c.vel.y>0)c.vel.y=0;}
 }
 export function carCar(a,b){
   const d=sT.subVectors(b.pos,a.pos);const L=d.length();if(L>3.4||L<1e-4)return;d.divideScalar(L);
@@ -178,7 +179,7 @@ export function stepBall(h){
   B.vel.y+=BALL_G*h;B.vel.multiplyScalar(Math.exp(-0.03*h));B.pos.addScaledVector(B.vel,h);
   if(B.pos.y<R){B.pos.y=R;if(B.vel.y<0)B.vel.y=B.vel.y<-2.5?-B.vel.y*0.6:0;const f=Math.exp(-0.3*h);B.vel.x*=f;B.vel.z*=f;}
   B.onGround=B.pos.y<R+0.05;
-  if(B.pos.y>50-R){B.pos.y=50-R;if(B.vel.y>0)B.vel.y*=-0.6;}
+  if(B.pos.y>56-R){B.pos.y=56-R;if(B.vel.y>0)B.vel.y*=-0.6;}
   const ax=Math.abs(B.pos.x),sx=Math.sign(B.pos.x)||1,RX=AX-RAMP;
   if(ax>RX&&B.pos.y<RAMP){
     const dx=ax-RX,dy=B.pos.y-RAMP,L=Math.hypot(dx,dy),lim=RAMP-R;
@@ -193,8 +194,9 @@ export function stepBall(h){
     if(B.pos.y>GH-R){B.pos.y=GH-R;if(B.vel.y>0)B.vel.y*=-0.5;}
     if(Math.abs(B.pos.z)>AZ+GD-R){B.pos.z=sz*(AZ+GD-R);if(B.vel.z*sz>0)B.vel.z*=-0.5;}
   }else{
-    const cd=(Math.abs(B.pos.x)+Math.abs(B.pos.z)-CORNER)/Math.SQRT2+R;
-    if(cd>0){const nx=(Math.sign(B.pos.x)||1)/Math.SQRT2,nz=sz/Math.SQRT2;B.pos.x-=nx*cd;B.pos.z-=nz*cd;const vn=B.vel.x*nx+B.vel.z*nz;if(vn>0){B.vel.x-=1.6*vn*nx;B.vel.z-=1.6*vn*nz;}}
+    // rounded corners: the wall is an arc of radius RC around (AX-RC, AZ-RC)
+    const qx=Math.abs(B.pos.x)-(AX-RC),qz=Math.abs(B.pos.z)-(AZ-RC);
+    if(qx>0&&qz>0){const L=Math.hypot(qx,qz),lim=RC-R;if(L>lim){const nx=(Math.sign(B.pos.x)||1)*qx/L,nz=sz*qz/L,cd=L-lim;B.pos.x-=nx*cd;B.pos.z-=nz*cd;const vn=B.vel.x*nx+B.vel.z*nz;if(vn>0){B.vel.x-=1.6*vn*nx;B.vel.z-=1.6*vn*nz;}}}
   }
 }
 export function botThink(b,now){
