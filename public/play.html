@@ -99,6 +99,8 @@ body.touch .camtag{display:none}
 .servers{width:min(300px,88vw);background:rgba(8,10,24,.75);border:1px solid rgba(255,255,255,.18);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:7px}
 .servers h3{margin:0;font-weight:700;font-size:12px;letter-spacing:.3em;color:#cfe0ff}
 #srvList{display:flex;flex-direction:column;gap:6px;max-height:min(120px,22vh);overflow:auto}
+#regionSel{font:inherit;font-weight:700;letter-spacing:.04em;color:#fff;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.25);border-radius:6px;padding:2px 6px;max-width:190px}
+#regionSel option{color:#000}
 .srv{display:flex;align-items:center;justify-content:space-between;gap:8px;background:rgba(255,255,255,.07);border-radius:8px;padding:6px 8px;font-weight:700;letter-spacing:.05em;min-width:0}
 .srv small{display:block;opacity:.7;font-weight:600;letter-spacing:.04em}
 .muted{opacity:.7;font-weight:600;font-size:clamp(11px,1.6vw,13px);letter-spacing:.03em;line-height:1.35}
@@ -545,6 +547,7 @@ body.touch #playersBtn{transform:translateX(calc(-50% - 30px))}
     <div class="mpstatus"><span class="spin" id="mpSpin"></span><span id="mpStatusText">Connecting…</span></div>
     <div id="srvList"></div>
     <div class="btnrow"><button class="btn sm primary" id="hostBtn" disabled>HOST SERVER</button><button class="btn sm ghost" id="mpBack">BACK</button></div>
+    <div class="srvpick"><label for="regionSel">Region for servers you host:</label> <select id="regionSel" aria-label="Region for servers you host"></select></div>
     <div class="srvpick"><span>Game server: <b id="srvName">this site</b></span><button class="linkbtn" type="button" id="srvChange">CHANGE</button></div>
   </div>
 </div>
@@ -2023,7 +2026,7 @@ function renderHosting(){
   const col=on?'#59e09a':NET.netState==='off'?'#ff9a4a':'#7cc6ff';
   for(const [t,d] of [['mpHostText','mpHostDot'],['menuHostText','menuHostDot']]){const el=document.getElementById(t),dot=document.getElementById(d);
     if(el&&el.textContent!==txt)el.textContent=txt;if(dot)dot.style.background=col;}
-  const lp=document.getElementById('lplat');if(lp)lp.textContent=HOSTING.name?`Running on ${HOSTING.name}${srv&&!srv.sameSite?' · server on '+srv.name:''}`:'';
+  const lp=document.getElementById('lplat');if(lp)lp.textContent=HOSTING.name?`Running on ${HOSTING.name}${srv&&!srv.sameSite?' · server on '+srv.name:''}${LOCAL.mode==='online'&&regionName(NET.region)?' · '+regionName(NET.region):''}`:'';
 }
 /* ---- networking: Rocket Strike server on Cloudflare ---- */
 // The page detects the server by asking /api/health. When the Worker serves this page, that's the
@@ -2061,14 +2064,22 @@ async function detectServer(){
     HOSTING.server={name:'Cloudflare '+(j.runtime==='workers'||!j.runtime?'Workers':j.runtime),sameSite:base===location.origin,via:j.via||''};return true;
   }catch(e){return false;}
 }
-const wsURL=room=>serverBase().replace(/^http/,'ws')+'/ws?room='+encodeURIComponent(room);
+const wsURL=(room,loc)=>serverBase().replace(/^http/,'ws')+'/ws?room='+encodeURIComponent(room)+(loc&&loc!=='auto'?'&loc='+encodeURIComponent(loc):'');
+// Server regions (Cloudflare data centres). A hosted match room is created in the region its host picks;
+// "Auto" leaves it to Cloudflare, which puts it near the host. The choice is only saved in this browser.
+const REGIONS=[['auto','Auto (near me)'],['weur','Europe West'],['eeur','Europe East'],['enam','North America East'],['wnam','North America West'],['apac','Asia-Pacific'],['oc','Oceania']];
+const regionName=k=>{const r=REGIONS.find(x=>x[0]===k);return r&&k!=='auto'?r[1]:'';};
+let REGION=(()=>{try{const v=localStorage.getItem('rs-region');return REGIONS.some(r=>r[0]===v)?v:'auto';}catch(e){return 'auto';}})();
+{const sel=document.getElementById('regionSel');
+  for(const [k,n] of REGIONS){const o=document.createElement('option');o.value=k;o.textContent=n;sel.appendChild(o);}
+  sel.value=REGION;sel.addEventListener('change',()=>{REGION=sel.value;try{localStorage.setItem('rs-region',REGION);}catch(e){}});}
 // One WebSocket per room. Offers the calls the game uses: presence(patch), peers(), onPeers(fn,onErr), leave().
 class RoomConn{
-  constructor(name){this.name=name;this.ws=null;this.me=null;this.mine={};this.map=new Map();this.fns=[];this.errFns=[];
+  constructor(name,loc){this.name=name;this.loc=loc||'';this.ws=null;this.me=null;this.mine={};this.map=new Map();this.fns=[];this.errFns=[];
     this.ready=false;this.closed=false;this.cache=null;this.lastSend=0;this.sendTimer=0;this.rtt=0;this.pingTimer=0;}
   open(){
     return new Promise((resolve,reject)=>{
-      let ws;try{ws=new WebSocket(wsURL(this.name));}catch(e){reject(e);return;}
+      let ws;try{ws=new WebSocket(wsURL(this.name,this.loc));}catch(e){reject(e);return;}
       this.ws=ws;const to=setTimeout(()=>{if(!this.ready){this.closed=true;try{ws.close();}catch(e){}reject(new Error('timed out'));}},8000);
       ws.onmessage=ev=>{let m;try{m=JSON.parse(ev.data);}catch(e){return;}if(!m||typeof m!=='object')return;
         if(m.t==='hello'&&typeof m.peer==='string'){
@@ -2136,7 +2147,7 @@ async function connectLobby(){
   }catch(e){logEv('warn','Lobby connect failed: '+e.message);NET.netState='reconnecting';renderServers();renderHosting();retryLobby();}
 }
 function retryLobby(){const n=Math.min(5,(NET.lobbyTries=(NET.lobbyTries||0)+1));setTimeout(connectLobby,Math.min(15000,500*2**n));}
-const openRoom=code=>new RoomConn(code).open();
+const openRoom=(code,loc)=>new RoomConn(code,loc).open();
 /* ---- choosing a game server ---- */
 function serverLabel(){
   const b=serverBase();if(!b)return 'none';
@@ -2185,9 +2196,9 @@ function renderServers(){
   for(const p of NET.servers){
     const s=p.presence.srv;const row=document.createElement('div');row.className='srv';
     const info=document.createElement('div');info.style.minWidth='0';const nm=document.createElement('div');nm.textContent=(cleanText(s.nm,16)||'PLAYER')+"'S SERVER";
-    const sm=document.createElement('small');sm.textContent=`${s.n|0} in lobby · ${s.ph==='lobby'||s.ph==='vote'?'waiting to start':'match in progress'}`;
+    const sm=document.createElement('small');sm.textContent=`${regionName(s.rg)?regionName(s.rg)+' · ':''}${s.n|0} in lobby · ${s.ph==='lobby'||s.ph==='vote'?'waiting to start':'match in progress'}`;
     const pf=h('small','pf','Running on '+(cleanText(s.pf,32)||'Cloudflare Workers'));info.append(nm,sm,pf);
-    const b=document.createElement('button');b.className='btn sm primary';b.textContent='JOIN';b.addEventListener('click',()=>joinGame(cleanText(s.code,48)));
+    const b=document.createElement('button');b.className='btn sm primary';b.textContent='JOIN';b.addEventListener('click',()=>joinGame(cleanText(s.code,48),s.rg));
     row.append(info,b);list.appendChild(row);
   }
   updateMpStatus();
@@ -2227,11 +2238,11 @@ function closeMultiplayer(){document.getElementById('mp').classList.remove('on')
 const randCode=()=>(NET.localHost?'rd-':'rs-')+Math.random().toString(36).slice(2,8);
 async function hostGame(){
   if(!NET.room||!canGoOnline())return;
-  try{const code=randCode();const gr=await openRoom(code);enterOnline(gr,code,true);}
+  try{const code=randCode();const gr=await openRoom(code,REGION);NET.region=REGION;enterOnline(gr,code,true);}
   catch(e){logEv('error','Host failed: '+((e&&(e.code||e.message))||e));toast('Could not create a server. Try again in a moment.');}
 }
-async function joinGame(code){
-  if(!canGoOnline())return;
+async function joinGame(code,rg){
+  if(!canGoOnline())return;NET.region=REGIONS.some(r=>r[0]===rg)?rg:'';
   if(!NET.room||!/^[a-z0-9][a-z0-9_.-]{0,47}$/.test(code))return;
   try{const gr=await openRoom(code);enterOnline(gr,code,false);}
   catch(e){logEv('error','Join failed: '+((e&&(e.code||e.message))||e));toast('Could not join that server.');}
@@ -2251,7 +2262,7 @@ function enterOnline(gr,code,host){
     for(const p of ch.joined)if(!p.isMe&&p.kind==='viewer'&&performance.now()-NET.joinedAt>1500)sysChat(`${peerName(p)} joined`);
     for(const p of ch.left)if(!p.isMe&&p.kind==='viewer')sysChat(`${peerName(p)} left`);
   },err=>{logEv('error','Room error: '+(err&&err.code));leaveOnline('Lost connection to the server.');});
-  document.getElementById('lcode').textContent=code.toUpperCase();
+  document.getElementById('lcode').textContent=code.toUpperCase();renderHosting();
   sysChat(host?'Server created. Anyone who opens the game will see it in the server list.':'Joined the server.');
   showCar(me,true);placeCar(me,V(0,CAR_H,0),Math.PI*0.75);me.active=false;
   setBody();snapCam=true;
@@ -2293,7 +2304,7 @@ function netSend(){
     M.rem=r2(M.rem);M.lr=r2(M.lr);M.clk=r2(M.clk);pr.g=M;pr.host=1;}
   NET.gr.presence(pr).catch(e=>logEv('warn','Presence update failed: '+((e&&(e.code||e.message))||e)));
   if(NET.isHost&&NET.room&&GAME.realT-NET.lastAdvert>1){NET.lastAdvert=GAME.realT;
-    NET.room.presence({srv:{code:NET.code,nm:nick(),n:NET.gr.peers().length,ph:M?M.ph:'lobby',pf:/^rd-/.test(NET.code)?'the host\'s device':(HOSTING.server&&HOSTING.server.name)||'Cloudflare Workers'}}).catch(()=>{});}
+    NET.room.presence({srv:{code:NET.code,nm:nick(),rg:NET.region||'auto',n:NET.gr.peers().length,ph:M?M.ph:'lobby',pf:/^rd-/.test(NET.code)?'the host\'s device':(HOSTING.server&&HOSTING.server.name)||'Cloudflare Workers'}}).catch(()=>{});}
 }
 function clientBall(){
   if(isAuth()||!M||!Array.isArray(M.b))return;

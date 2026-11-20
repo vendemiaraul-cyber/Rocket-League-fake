@@ -20,6 +20,9 @@ import { searchWeb, testInstances } from './search.js';
 import { report } from './reports.js';
 
 const ROOM_RE = /^[a-z0-9][a-z0-9_.-]{0,47}$/;
+// Regions a hosted match room can be created in (Cloudflare Durable Object location hints). Only the first
+// connection to a room uses it, which is the host's. Nothing about the player is stored for this.
+const ROOM_REGIONS = new Set(['wnam', 'enam', 'weur', 'eeur', 'apac', 'oc']);
 const MAX_MSG = 16 * 1024;          // bytes per message
 const MAX_PEERS = { lobby: 400, game: 12 };
 const MAX_RATE = 90;                // messages per second per connection
@@ -45,7 +48,9 @@ export default {
       }
       const room = (url.searchParams.get('room') || '').toLowerCase();
       if (!ROOM_RE.test(room)) return new Response('Bad room name', { status: 400 });
-      const stub = env.ROOMS.get(env.ROOMS.idFromName(room));
+      const loc = url.searchParams.get('loc');
+      const opts = room !== 'lobby' && ROOM_REGIONS.has(loc) ? { locationHint: loc } : undefined;
+      const stub = env.ROOMS.get(env.ROOMS.idFromName(room), opts);
       return stub.fetch(request);
     }
 
